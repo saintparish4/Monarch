@@ -2,187 +2,204 @@
 pragma solidity ^0.8.28;
 
 /**
- * @title BaseMath
- * @dev Optimized math utilities for Base L2 applications
- * @author Monarch Contracts Team 
+ * @title Math
+ * @dev Mathematical utilities optimized for Base L2 applications
+ * @author BlueSky Labs Contracts Team
  */
-
-library BaseMath {
-    /// @dev Custom errors for gas efficiency
-    error DivisionByZero();
-    error Overflow();
-    error InvalidPercentage();
-
-    /// @dev Maximum basis points (100%)
-    uint256 public constant MAX_BPS = 10000;
-
-    /// @dev Precision factor for calculations
-    uint256 public constant PRECISION = 1e18;
-
+library Math {
     /**
-     * @dev Safe multiplication with overflow protection
-     * @param a First operand
-     * @param b Second operand
-     * @return result The product of a and b
-     */
-    function mul(uint256 a, uint256 b) internal pure returns (uint256 result) {
-        if (a == 0) return 0;
-
-        result = a * b;
-        if (result / a != b) revert Overflow(); 
-    }
-
-    /**
-     * @dev Safe division with zero check
-     * @param a Dividend
-     * @param b Divisor
-     * @return result The quotient of a and b 
-     */
-    function div(uint256 a, uint256 b) internal pure returns (uint256 result) {
-        if (b == 0) revert DivisionByZero();
-        result = a / b;  
-    }
-
-    /**
-     * @dev Calculate percentage of a value using basis points
-     * @param value The base value
-     * @param bpd Basis points (1bps = 0.01%)
-     * @return result the calculated percentage 
-     */
-    function percentage(uint256 value, uint256 bps) internal pure returns (uint245 result) {
-        if (bps > MAX_BPS) revert InvalidPercentage();
-        result = (value * bps) / MAX_BPS;  
-    }
-
-    /**
-     * @dev Calculate compound interest
-     * @param principal Initial amount
-     * @param rate Interest rate in basis points per period
-     * @param periods Number of compounding periods
-     * @return result Final amount after compound interest 
-     */
-    function compound(
-        uint256 principal,
-        uint256 rate,
-        uint256 periods 
-    ) internal pure returns (uint256 result) {
-        if (periods == 0) return principal;
-
-        result = principal;
-        for (uint256 i = 0; i < periods; ) {
-            result = result + percentage(result, rate);
-            unchecked { ++i }  
-        }
-    }
-
-    /**
-     * @dev Calculate square root using Babylonian method
-     * @param x Input value
-     * @return result Square root of x 
-     */
-    function sqrt(uint256 x) internal pure returns (uint256 result) {
-        if (x == 0) return 0;
-
-        // Initial guess
-        result = x;
-        uint256 temp = (x / 2) + 1;
-
-        // Babylonian method
-        while (temp < result) {
-            result = temp;
-            temp = (x / temp + temp) / 2;
-        }
-    }
-
-    /**
-     * @dev Get minimum of two values
-     * @param a First value
-     * @param b Second value
-     * @return Minimum value 
-     */
-    function min(uint256 a, uint256 b) internal pure returns (uint256) {
-        return a < b ? a : b; 
-    }
-
-    /**
-     * @dev Get maximum of two values
-     * @param a First value
-     * @param b Second value
-     * @return Maximum value  
+     * @dev Returns the largest of two numbers.
      */
     function max(uint256 a, uint256 b) internal pure returns (uint256) {
-        return a > b ? a : b;  
+        return a > b ? a : b;
     }
 
     /**
-     * @dev Calculate weighted average
-     * @param values Array of values
-     * @param weights Array of weights
-     * @return result Weighted average  
+     * @dev Returns the smallest of two numbers.
      */
-    function weightedAverage(
-        uint256[] memory values,
-        uint256[] memory weights 
-    ) internal pure returns (uint256 result) {
-        if (values.length != weights.length || values.length == 0) {
-            revert InvalidPercentage();
-        }
-
-        uint256 totalWeighted = 0;
-        uint256 totalWeight = 0;
-
-        for (uint256 i = 0; i < values.length; ) {
-            totalWeighted += values[i] * weights[i];
-            totalWeight += weights[i];
-            unchecked { ++i }   
-        }
-
-        if (totalWeight == 0) revert DivisionByZero();
-        result = totalWeighted / totalWeight;   
+    function min(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a < b ? a : b;
     }
 
     /**
-     * @dev Linear interpolation between two points
-     * @param start Starting value
-     * @param end Ending value
-     * @param progress Progress from 0 to PRECISION (1e18)
-     * @return result Interpolated value  
+     * @dev Returns the average of two numbers. The result is rounded towards zero.
      */
-    function lerp(
-        uint256 start,
-        uint256 end,
-        uint256 progress 
-    ) internal pure returns (uint256 result) {
-        if (progress > PRECISION) revert InvalidPercentage();
+    function average(uint256 a, uint256 b) internal pure returns (uint256) {
+        // (a + b) / 2 can overflow
+        return (a & b) + (a ^ b) / 2;
+    }
 
-        if (start <= end) {
-            result = start + ((end - start) * progress) / PRECISION; 
-        } else {
-            result = start - ((start - end) * progress) / PRECISION;   
+    /**
+     * @dev Returns the ceiling of the division of two numbers.
+     */
+    function ceilDiv(uint256 a, uint256 b) internal pure returns (uint256) {
+        require(b > 0, "Math: division by zero");
+
+        // (a + b - 1) / b can overflow on addition, so we distribute
+        return a == 0 ? 0 : (a - 1) / b + 1;
+    }
+
+    /**
+     * @dev Calculates floor(sqrt(a)), following the selected rounding direction.
+     */
+    function sqrt(uint256 a) internal pure returns (uint256) {
+        if (a == 0) {
+            return 0;
+        }
+
+        // For our first guess, we get the biggest power of 2 which is smaller than the square root of the target.
+        // We know that the "msb" (most significant bit) of our target number `a` is a power of 2 such that we have
+        // `msb(a) <= a < 2*msb(a)`.
+        // We also know that `k`, the position of the most significant bit, is such that `msb(a) = 2**k`.
+        // This gives `2**k < a <= 2**(k+1)` → `2**(k/2) <= sqrt(a) < 2**((k+1)/2) <= 2**(k/2+1)`.
+        // Using an algorithm similar to the msb computation, we are able to compute `result = 2**(k/2)` which is a
+        // good first approximation of `sqrt(a)` with at least 1 correct bit.
+        uint256 result = 1;
+        uint256 x = a;
+        if (x >> 128 > 0) {
+            x >>= 128;
+            result <<= 64;
+        }
+        if (x >> 64 > 0) {
+            x >>= 64;
+            result <<= 32;
+        }
+        if (x >> 32 > 0) {
+            x >>= 32;
+            result <<= 16;
+        }
+        if (x >> 16 > 0) {
+            x >>= 16;
+            result <<= 8;
+        }
+        if (x >> 8 > 0) {
+            x >>= 8;
+            result <<= 4;
+        }
+        if (x >> 4 > 0) {
+            x >>= 4;
+            result <<= 2;
+        }
+        if (x >> 2 > 0) {
+            result <<= 1;
+        }
+
+        // At this point `result` is an estimation with one bit of precision. We know the true value is a uint128,
+        // since it is the square root of a uint256. Newton's method converges quadratically (precision doubles at
+        // every iteration). We thus need at most 7 iteration to turn our partial result with one bit of precision
+        // into the expected uint128 result.
+        unchecked {
+            result = (result + a / result) >> 1;
+            result = (result + a / result) >> 1;
+            result = (result + a / result) >> 1;
+            result = (result + a / result) >> 1;
+            result = (result + a / result) >> 1;
+            result = (result + a / result) >> 1;
+            result = (result + a / result) >> 1;
+            return min(result, a / result);
         }
     }
 
     /**
-     * @dev Calculate exponential decay
-     * @param initial Initial value
-     * @param rate Decay rate in basis points per period
-     * @param periods Number of decay periods
-     * @return result Value after decay 
+     * @dev Calculates the percentage of a value
+     * @param value The value to calculate percentage of
+     * @param percentage The percentage in basis points (100 = 1%)
+     * @return The percentage of the value
      */
-    function decay(
-        uint256 initial,
-        uint256 rate,
-        uint256 periods  
-    ) internal pure returns (uint256 result) {
-        if (periods == 0 || rate == 0) return initial;
-        if (rate >= MAX_BPS) return 0;
+    function percentageOf(uint256 value, uint256 percentage) internal pure returns (uint256) {
+        return (value * percentage) / 10000;
+    }
 
-        result = initial;
-        uint256 decayFactor = MAX_BPS - rate;
+    /**
+     * @dev Calculates compound interest
+     * @param principal The principal amount
+     * @param rate The interest rate in basis points per period
+     * @param periods The number of periods
+     * @return The final amount after compound interest
+     */
+    function compoundInterest(uint256 principal, uint256 rate, uint256 periods) internal pure returns (uint256) {
+        if (periods == 0) return principal;
 
-        for (uint256 i = 0; i < periods; ) {
-            result = (result * decayFactor) / MAX_BPS;
-            unchecked { ++i }   
+        uint256 result = principal;
+        for (uint256 i = 0; i < periods; i++) {
+            result = result + percentageOf(result, rate);
         }
+        return result;
+    }
+
+    /**
+     * @dev Calculates simple interest
+     * @param principal The principal amount
+     * @param rate The interest rate in basis points per period
+     * @param periods The number of periods
+     * @return The final amount after simple interest
+     */
+    function simpleInterest(uint256 principal, uint256 rate, uint256 periods) internal pure returns (uint256) {
+        return principal + percentageOf(principal, rate * periods);
+    }
+
+    /**
+     * @dev Calculate the power of a number using binary exponentiation
+     * @param base The base number
+     * @param exponent The exponent
+     * @return The result of base^exponent
+     */
+    function pow(uint256 base, uint256 exponent) internal pure returns (uint256) {
+        if (exponent == 0) return 1;
+        if (base == 0) return 0;
+
+        uint256 result = 1;
+        uint256 currentBase = base;
+
+        while (exponent > 0) {
+            if (exponent & 1 == 1) {
+                result = result * currentBase;
+            }
+            currentBase = currentBase * currentBase;
+            exponent >>= 1;
+        }
+
+        return result;
+    }
+
+    /**
+     * @dev Calculate absolute difference between two numbers
+     * @param a First number
+     * @param b Second number
+     * @return The absolute difference
+     */
+    function absDiff(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a > b ? a - b : b - a;
+    }
+
+    /**
+     * @dev Check if a number is within a percentage range of another
+     * @param value The value to check
+     * @param target The target value
+     * @param tolerance The tolerance in basis points
+     * @return True if within range
+     */
+    function isWithinTolerance(uint256 value, uint256 target, uint256 tolerance) internal pure returns (bool) {
+        uint256 diff = absDiff(value, target);
+        uint256 maxDiff = percentageOf(target, tolerance);
+        return diff <= maxDiff;
+    }
+
+    /**
+     * @dev Linear interpolation between two values
+     * @param a Starting value
+     * @param b Ending value
+     * @param t Interpolation factor (0-10000, where 10000 = 100%)
+     * @return The interpolated value
+     */
+    function lerp(uint256 a, uint256 b, uint256 t) internal pure returns (uint256) {
+        require(t <= 10000, "Math: t must be <= 10000");
+
+        if (a == b) return a;
+
+        uint256 diff = absDiff(a, b);
+        uint256 interpolatedDiff = percentageOf(diff, t);
+
+        return a < b ? a + interpolatedDiff : a - interpolatedDiff;
     }
 }

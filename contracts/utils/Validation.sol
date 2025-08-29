@@ -2,320 +2,412 @@
 pragma solidity ^0.8.28;
 
 /**
- * @title BaseValidation
+ * @title Validation
  * @dev Input validation utilities for Base applications
- * @author Monarch Contracts Team  
+ * @author BlueSky Labs Contracts Team
  */
-library BaseValidation {
-    /// @dev Custom errors for gas efficiency
-    error InvalidLength();
-    error InvalidRange();
+library Validation {
+    // Custom errors
+    error InvalidInput();
+    error ValueTooLarge();
+    error ValueTooSmall();
+    error InvalidStringLength();
+    error InvalidCharacter();
     error InvalidFormat();
-    error InvalidPercentage();
-    error InvalidTimestamp();
-    error InvalidDuration();
-    error ArrayLengthMismatch();
-    error EmptyArray();
-    error DuplicateEntry();
+    error InvalidRange();
 
-    /// @dev Constants for validation
-    uint256 public constant MAX_BPS = 10000; // 100%
-    uint256 public constant MIN_DURATION = 1 hours;
-    uint256 public constant MAX_DURATION = 365 days;
-    uint256 public constant MAX_STRING_LENGTH = 256;
+    // Constants for validation
+    uint256 public constant MAX_STRING_LENGTH = 1000;
+    uint256 public constant MAX_ARRAY_LENGTH = 1000;
+    uint256 public constant MAX_BASIS_POINTS = 10000; // 100%
 
     /**
-     * @dev Validate string length
-     * @param str String to Validate
-     * @param minLength Minimum length
-     * @param maxLength Maximum length 
+     * @dev Validates that a value is within a specified range
      */
-    function validateStringLength(
-        string memory str,
-        uint256 minLength,
-        uint256 maxLength
-    ) internal pure {
-        uint256 length = bytes(str).length;
-        if (length < minLength || length > maxLength) {
-            revert InvalidLength();
+    function validateRange(uint256 value, uint256 minValue, uint256 maxValue) internal pure {
+        if (value < minValue) revert ValueTooSmall();
+        if (value > maxValue) revert ValueTooLarge();
+    }
+
+    /**
+     * @dev Validates that a percentage is valid (0-10000 basis points)
+     */
+    function validatePercentage(uint256 percentage) internal pure {
+        if (percentage > MAX_BASIS_POINTS) {
+            revert ValueTooLarge();
         }
     }
 
     /**
-     * @dev Validate that string is not empty
-     * @param str String to validate
+     * @dev Validates string length
+     */
+    function validateStringLength(string memory str, uint256 minLength, uint256 maxLength) internal pure {
+        bytes memory strBytes = bytes(str);
+        if (strBytes.length < minLength || strBytes.length > maxLength) {
+            revert InvalidStringLength();
+        }
+    }
+
+    /**
+     * @dev Validates that a string is not empty
      */
     function validateNonEmptyString(string memory str) internal pure {
-        if (bytes(str).length == 0) revert InvalidLength();
+        if (bytes(str).length == 0) {
+            revert InvalidStringLength();
+        }
     }
 
     /**
-     * @dev Validate percentage in basis points
-     * @param bps Basis points to validate
+     * @dev Validates array length
      */
-    function validateBasisPoints(uint256 bps) internal pure {
-        if (bps > MAX_BPS) revert InvalidPercentage();
+    function validateArrayLength(uint256 length, uint256 maxLength) internal pure {
+        if (length == 0) revert InvalidInput();
+        if (length > maxLength) revert ValueTooLarge();
     }
 
     /**
-     * @dev Validate value is within range (inclusive)
-     * @param value Value to validate
-     * @param min Minimum value
-     * @param max Maximum value
+     * @dev Validates that arrays have matching lengths
      */
-    function validateRange(
-        uint256 value,
-        uint256 min,
-        uint256 max
-    ) internal pure {
-        if (value < min || value > max) revert InvalidRange();
+    function validateArrayLengthsMatch(uint256 length1, uint256 length2) internal pure {
+        if (length1 != length2) {
+            revert InvalidInput();
+        }
     }
 
     /**
-     * @dev Validate timestamp is in the future
-     * @param timestamp Timestamp to validate
+     * @dev Validates address is not zero
+     */
+    function validateAddress(address addr) internal pure {
+        if (addr == address(0)) {
+            revert InvalidInput();
+        }
+    }
+
+    /**
+     * @dev Validates multiple addresses are not zero
+     */
+    function validateAddresses(address[] memory addresses) internal pure {
+        for (uint256 i = 0; i < addresses.length; i++) {
+            validateAddress(addresses[i]);
+        }
+    }
+
+    /**
+     * @dev Validates amount is greater than zero
+     */
+    function validateAmount(uint256 amount) internal pure {
+        if (amount == 0) {
+            revert ValueTooSmall();
+        }
+    }
+
+    /**
+     * @dev Validates timestamp is in the future
      */
     function validateFutureTimestamp(uint256 timestamp) internal view {
-        if (timestamp <= block.timestamp) revert InvalidTimestamp();
-    }
-
-    /**
-     * @dev Validate timestamp is in the past
-     * @param timestamp Timestamp to validate
-     */
-    function validatePastTimestamp(uint256 timestamp) internal view {
-        if (timestamp >= block.timestamp) revert InvalidTimestamp();
-    }
-
-    /**
-     * @dev Validate duration is within acceptable range
-     * @param duration Duration to validate in seconds
-     */
-    function validateDuration(uint256 duration) internal pure {
-        if (duration < MIN_DURATION || duration > MAX_DURATION) {
-            revert InvalidDuration();
+        if (timestamp <= block.timestamp) {
+            revert InvalidInput();
         }
     }
 
     /**
-     * @dev Validate array is not empty
-     * @param array Array to validate
+     * @dev Validates timestamp is reasonable (not too far in future)
      */
-    function validateNonEmptyArray(uint256[] memory array) internal pure {
-        if (array.length == 0) revert EmptyArray();
-    }
-
-    /**
-     * @dev Validate address array is not empty
-     * @param array Array to validate
-     */
-    function validateNonEmptyAddressArray(address[] memory array) internal pure {
-        if (array.length == 0) revert EmptyArray();
-    }
-
-    /**
-     * @dev Validate two arrays have the same length
-     * @param array1 First array
-     * @param array2 Second array
-     */
-    function validateArrayLengths(
-        uint256[] memory array1,
-        uint256[] memory array2
-    ) internal pure {
-        if (array1.length != array2.length) revert ArrayLengthMismatch();
-    }
-
-    /**
-     * @dev Validate address and uint256 arrays have same length
-     * @param addresses Address array
-     * @param values Values array
-     */
-    function validateArrayLengths(
-        address[] memory addresses,
-        uint256[] memory values
-    ) internal pure {
-        if (addresses.length != values.length) revert ArrayLengthMismatch();
-    }
-
-    /**
-     * @dev Validate array has no duplicate addresses
-     * @param addresses Array to validate
-     */
-    function validateNoDuplicateAddresses(address[] memory addresses) internal pure {
-        for (uint256 i = 0; i < addresses.length; ) {
-            for (uint256 j = i + 1; j < addresses.length; ) {
-                if (addresses[i] == addresses[j]) revert DuplicateEntry();
-                unchecked { ++j; }
-            }
-            unchecked { ++i; }
+    function validateReasonableTimestamp(uint256 timestamp) internal view {
+        // Allow up to 10 years in the future
+        uint256 maxFuture = block.timestamp + (10 * 365 days);
+        if (timestamp > maxFuture) {
+            revert ValueTooLarge();
         }
     }
 
     /**
-     * @dev Validate handle format (alphanumeric + underscore, 3-32 chars)
-     * @param handle Handle string to validate
+     * @dev Validates duration is within acceptable range
+     */
+    function validateDuration(uint256 duration, uint256 minDuration, uint256 maxDuration) internal pure {
+        validateRange(duration, minDuration, maxDuration);
+    }
+
+    /**
+     * @dev Validates handle format for social applications
+     * Rules: 3-32 characters, alphanumeric + underscore, no leading/trailing underscore
      */
     function validateHandle(string memory handle) internal pure {
         bytes memory handleBytes = bytes(handle);
         uint256 length = handleBytes.length;
-        
+
         // Check length
-        if (length < 3 || length > 32) revert InvalidLength();
-        
-        // Check first character is not underscore
-        if (handleBytes[0] == 0x5f) revert InvalidFormat(); // underscore
-        
-        // Validate each character
-        for (uint256 i = 0; i < length; ) {
+        if (length < 3 || length > 32) {
+            revert InvalidStringLength();
+        }
+
+        // Check first and last character are not underscore
+        if (handleBytes[0] == "_" || handleBytes[length - 1] == "_") {
+            revert InvalidCharacter();
+        }
+
+        // Check all characters are valid
+        for (uint256 i = 0; i < length; i++) {
             bytes1 char = handleBytes[i];
-            
-            // Allow: a-z, A-Z, 0-9, underscore
-            if (!(
-                (char >= 0x61 && char <= 0x7a) || // a-z
-                (char >= 0x41 && char <= 0x5a) || // A-Z  
-                (char >= 0x30 && char <= 0x39) || // 0-9
-                (char == 0x5f)                     // underscore
-            )) {
-                revert InvalidFormat();
+            if (
+                !((char >= "a" && char <= "z") ||
+                    (char >= "A" && char <= "Z") ||
+                    (char >= "0" && char <= "9") ||
+                    char == "_")
+            ) {
+                revert InvalidCharacter();
             }
-            
-            unchecked { ++i; }
         }
     }
 
     /**
-     * @dev Validate email format (basic validation)
-     * @param email Email string to validate
+     * @dev Validates email format (basic validation)
      */
     function validateEmail(string memory email) internal pure {
         bytes memory emailBytes = bytes(email);
         uint256 length = emailBytes.length;
-        
-        if (length < 5 || length > 254) revert InvalidLength();
-        
+
+        if (length < 5 || length > 254) {
+            revert InvalidStringLength();
+        }
+
         bool hasAt = false;
         bool hasDot = false;
-        uint256 atIndex = 0;
-        
-        // Find @ symbol
-        for (uint256 i = 0; i < length; ) {
-            if (emailBytes[i] == 0x40) { // @
-                if (hasAt) revert InvalidFormat(); // Multiple @
+        uint256 atPosition = 0;
+
+        for (uint256 i = 0; i < length; i++) {
+            bytes1 char = emailBytes[i];
+
+            if (char == "@") {
+                if (hasAt || i == 0 || i == length - 1) {
+                    revert InvalidFormat();
+                }
                 hasAt = true;
-                atIndex = i;
+                atPosition = i;
+            } else if (char == "." && hasAt && i > atPosition + 1) {
+                hasDot = true;
             }
-            unchecked { ++i; }
         }
-        
-        if (!hasAt || atIndex == 0 || atIndex == length - 1) {
+
+        if (!hasAt || !hasDot) {
             revert InvalidFormat();
         }
-        
-        // Check for dot after @
-        for (uint256 i = atIndex + 1; i < length; ) {
-            if (emailBytes[i] == 0x2e) { // .
-                hasDot = true;
-                break;
-            }
-            unchecked { ++i; }
-        }
-        
-        if (!hasDot) revert InvalidFormat();
     }
 
     /**
-     * @dev Validate URL format (basic validation)
-     * @param url URL string to validate
+     * @dev Validates URL format (basic validation)
      */
     function validateURL(string memory url) internal pure {
         bytes memory urlBytes = bytes(url);
         uint256 length = urlBytes.length;
-        
-        if (length < 10 || length > 2048) revert InvalidLength();
-        
-        // Check for http:// or https://
-        if (length < 8) revert InvalidFormat();
-        
+
+        if (length < 7 || length > 2083) {
+            // Min: "http://" or "https://"
+            revert InvalidStringLength();
+        }
+
+        // Check for protocol
         bool validProtocol = false;
-        
-        // Check for https://
-        if (length >= 8 && 
-            urlBytes[0] == 0x68 && // h
-            urlBytes[1] == 0x74 && // t  
-            urlBytes[2] == 0x74 && // t
-            urlBytes[3] == 0x70 && // p
-            urlBytes[4] == 0x73 && // s
-            urlBytes[5] == 0x3a && // :
-            urlBytes[6] == 0x2f && // /
-            urlBytes[7] == 0x2f    // /
-        ) {
-            validProtocol = true;
+
+        // Check for "http://"
+        if (length >= 7) {
+            if (
+                urlBytes[0] == "h" &&
+                urlBytes[1] == "t" &&
+                urlBytes[2] == "t" &&
+                urlBytes[3] == "p" &&
+                urlBytes[4] == ":" &&
+                urlBytes[5] == "/" &&
+                urlBytes[6] == "/"
+            ) {
+                validProtocol = true;
+            }
         }
-        
-        // Check for http://
-        if (!validProtocol && length >= 7 &&
-            urlBytes[0] == 0x68 && // h
-            urlBytes[1] == 0x74 && // t
-            urlBytes[2] == 0x74 && // t  
-            urlBytes[3] == 0x70 && // p
-            urlBytes[4] == 0x3a && // :
-            urlBytes[5] == 0x2f && // /
-            urlBytes[6] == 0x2f    // /
-        ) {
-            validProtocol = true;
+
+        // Check for "https://"
+        if (!validProtocol && length >= 8) {
+            if (
+                urlBytes[0] == "h" &&
+                urlBytes[1] == "t" &&
+                urlBytes[2] == "t" &&
+                urlBytes[3] == "p" &&
+                urlBytes[4] == "s" &&
+                urlBytes[5] == ":" &&
+                urlBytes[6] == "/" &&
+                urlBytes[7] == "/"
+            ) {
+                validProtocol = true;
+            }
         }
-        
-        if (!validProtocol) revert InvalidFormat();
+
+        if (!validProtocol) {
+            revert InvalidFormat();
+        }
     }
 
     /**
-     * @dev Validate IPFS hash format
-     * @param hash IPFS hash string to validate
+     * @dev Validates IPFS hash format
      */
     function validateIPFSHash(string memory hash) internal pure {
         bytes memory hashBytes = bytes(hash);
         uint256 length = hashBytes.length;
-        
-        // IPFS v0 hashes are 46 characters starting with "Qm"
-        // IPFS v1 hashes are 59 characters starting with "ba" 
+
+        // CIDv0: 46 characters starting with "Qm"
+        // CIDv1: typically 59 characters starting with "bafy" (base32)
         if (length == 46) {
-            if (hashBytes[0] != 0x51 || hashBytes[1] != 0x6d) { // "Qm"
+            // Validate CIDv0
+            if (hashBytes[0] != "Q" || hashBytes[1] != "m") {
                 revert InvalidFormat();
             }
+
+            // Check all characters are base58
+            for (uint256 i = 2; i < length; i++) {
+                bytes1 char = hashBytes[i];
+                if (
+                    !((char >= "1" && char <= "9") ||
+                        (char >= "A" && char <= "H") ||
+                        (char >= "J" && char <= "N") ||
+                        (char >= "P" && char <= "Z") ||
+                        (char >= "a" && char <= "k") ||
+                        (char >= "m" && char <= "z"))
+                ) {
+                    revert InvalidCharacter();
+                }
+            }
         } else if (length == 59) {
-            if (hashBytes[0] != 0x62 || hashBytes[1] != 0x61) { // "ba"
+            // Validate CIDv1
+            if (!(hashBytes[0] == "b" && hashBytes[1] == "a" && hashBytes[2] == "f" && hashBytes[3] == "y")) {
                 revert InvalidFormat();
             }
         } else {
-            revert InvalidLength();
+            revert InvalidStringLength();
         }
     }
 
     /**
-     * @dev Batch validate addresses are not zero
-     * @param addresses Array of addresses to validate
+     * @dev Validates metadata format for NFTs/posts
      */
-    function validateAddressesNotZero(address[] memory addresses) internal pure {
-        for (uint256 i = 0; i < addresses.length; ) {
-            if (addresses[i] == address(0)) revert InvalidFormat();
-            unchecked { ++i; }
+    function validateMetadata(bytes32 metadata) internal pure {
+        if (metadata == bytes32(0)) {
+            revert InvalidInput();
         }
     }
 
     /**
-     * @dev Validate fee structure
-     * @param fees Array of fee percentages in basis points
+     * @dev Validates token symbol format
      */
-    function validateFees(uint256[] memory fees) internal pure {
-        uint256 totalFees = 0;
-        
-        for (uint256 i = 0; i < fees.length; ) {
-            validateBasisPoints(fees[i]);
-            totalFees += fees[i];
-            unchecked { ++i; }
+    function validateTokenSymbol(string memory symbol) internal pure {
+        bytes memory symbolBytes = bytes(symbol);
+        uint256 length = symbolBytes.length;
+
+        if (length < 2 || length > 11) {
+            revert InvalidStringLength();
         }
-        
-        // Total fees cannot exceed 100%
-        if (totalFees > MAX_BPS) revert InvalidPercentage();
+
+        // Only uppercase letters and numbers
+        for (uint256 i = 0; i < length; i++) {
+            bytes1 char = symbolBytes[i];
+            if (!((char >= "A" && char <= "Z") || (char >= "0" && char <= "9"))) {
+                revert InvalidCharacter();
+            }
+        }
+    }
+
+    /**
+     * @dev Validates token name format
+     */
+    function validateTokenName(string memory name) internal pure {
+        validateStringLength(name, 1, 50);
+
+        bytes memory nameBytes = bytes(name);
+
+        // Check for valid characters (letters, numbers, spaces, hyphens)
+        for (uint256 i = 0; i < nameBytes.length; i++) {
+            bytes1 char = nameBytes[i];
+            if (
+                !((char >= "a" && char <= "z") ||
+                    (char >= "A" && char <= "Z") ||
+                    (char >= "0" && char <= "9") ||
+                    char == " " ||
+                    char == "-")
+            ) {
+                revert InvalidCharacter();
+            }
+        }
+    }
+
+    /**
+     * @dev Validates signature format
+     */
+    function validateSignature(bytes memory signature) internal pure {
+        if (signature.length != 65) {
+            revert InvalidInput();
+        }
+    }
+
+    /**
+     * @dev Validates price is reasonable (not too high)
+     */
+    function validatePrice(uint256 price, uint256 maxPrice) internal pure {
+        if (price > maxPrice) {
+            revert ValueTooLarge();
+        }
+    }
+
+    /**
+     * @dev Validates slippage tolerance
+     */
+    function validateSlippage(uint256 slippage) internal pure {
+        // Max 50% slippage (5000 basis points)
+        if (slippage > 5000) {
+            revert ValueTooLarge();
+        }
+    }
+
+    /**
+     * @dev Validates gas limit is reasonable
+     */
+    function validateGasLimit(uint256 gasLimit) internal pure {
+        // Min 21000, max 15M (Base block gas limit)
+        validateRange(gasLimit, 21000, 15000000);
+    }
+
+    /**
+     * @dev Validates fee rate is reasonable
+     */
+    function validateFeeRate(uint256 feeRate) internal pure {
+        // Max 10% fee (1000 basis points)
+        if (feeRate > 1000) {
+            revert ValueTooLarge();
+        }
+    }
+
+    /**
+     * @dev Comprehensive input validation for user operations
+     */
+    function validateUserOperation(address sender, uint256 callGasLimit, uint256 maxFeePerGas) internal pure {
+        validateAddress(sender);
+        validateGasLimit(callGasLimit);
+        validateAmount(maxFeePerGas);
+        // Nonce can be 0, so no validation needed
+    }
+
+    /**
+     * @dev Validates payment plan parameters
+     */
+    function validatePaymentPlan(string memory name, uint256 amount, uint256 period) internal pure {
+        validateNonEmptyString(name);
+        validateStringLength(name, 1, 100);
+        validateAmount(amount);
+
+        // Period must be at least 1 hour
+        if (period < 1 hours) {
+            revert ValueTooSmall();
+        }
+
+        // Period must be less than 10 years
+        if (period > 10 * 365 days) {
+            revert ValueTooLarge();
+        }
     }
 }

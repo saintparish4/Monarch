@@ -2,118 +2,263 @@
 pragma solidity ^0.8.28;
 
 /**
- * @title BaseSecurity
- * @dev Security utilities and patterns for Base applications
- * @author Monarch Contracts Team 
+ * @title Security
+ * @dev Security utilities and access control patterns for Base applications
+ * @author BlueSky Labs Contracts Team
  */
-library BaseSecurity {
-    /// @dev Custom errors for gas efficiency
+library Security {
+    // Custom errors for gas efficiency
     error Unauthorized();
-    error Paused();
-    error NotPaused();
     error InvalidAddress();
     error InvalidAmount();
-    error TimeLockNotMet();
-    error AlreadyExecuted();
+    error ContractPaused();
+    error DeadlineExpired();
     error InvalidSignature();
-
-    /// @dev Role constants
-    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
-    bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
-    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    error NonceAlreadyUsed();
 
     /**
-     * @dev Validate that address is not zero
-     * @param addr Address to validate 
+     * @dev Modifier data structure for role-based access control
      */
-    function validateAddress(address addr) internal pure {
-        if (addr == address(0)) revert InvalidAddress(); 
-    }
-    /**
-     * @dev Validate that amount is greater than zero
-     * @param amount Amount to validate 
-     */
-    function validateAmount(uint256 amount) internal pure {
-        if (amount == 0) revert InvalidAmount(); 
+    struct RoleData {
+        mapping(address => bool) members;
+        bytes32 adminRole;
     }
 
     /**
-     * @dev Validate multiple addresses are not zero
-     * @param addresses Array of addresses to validate 
+     * @dev Pause functionality state
      */
-    function validateAddresses(address[] memory addresses) internal pure {
-        for (uint256 i = 0; i < addresses.length; ) {
-            validateAddress(addresses[i]);
-            unchecked { ++i }    
+    struct PauseData {
+        bool paused;
+        address pauser;
+        uint256 pausedAt;
+    }
+
+    /**
+     * @dev Rate limiting data structure
+     */
+    struct RateLimit {
+        uint256 lastAction;
+        uint256 actionCount;
+        uint256 windowStart;
+        uint256 limit;
+        uint256 window;
+    }
+
+    /**
+     * @dev Nonce tracking for replay protection
+     */
+    struct NonceTracker {
+        mapping(address => uint256) nonces;
+        mapping(address => mapping(uint256 => bool)) usedNonces;
+    }
+
+    // Events
+    event RoleGranted(bytes32 indexed role, address indexed account, address indexed sender);
+    event RoleRevoked(bytes32 indexed role, address indexed account, address indexed sender);
+    event Paused(address account);
+    event Unpaused(address account);
+    event RateLimitExceeded(address indexed account, uint256 limit);
+
+    /**
+     * @dev Grants role to account
+     */
+    function grantRole(
+        mapping(bytes32 => RoleData) storage roles,
+        bytes32 role,
+        address account,
+        address admin
+    ) internal {
+        if (!hasRole(roles, roles[role].adminRole, admin)) {
+            revert Unauthorized();
+        }
+
+        if (!roles[role].members[account]) {
+            roles[role].members[account] = true;
+            emit RoleGranted(role, account, admin);
         }
     }
 
     /**
-     * @dev Check if caller is authorized for the given role
-     * @param hasRole Mapping to check role membership
-     * @param role Role to check
-     * @param account Account to check
+     * @dev Revokes role from account
      */
-    function requireRole(
-        mapping(bytes32 => mapping(address => bool)) storage hasRole,
+    function revokeRole(
+        mapping(bytes32 => RoleData) storage roles,
         bytes32 role,
-        address account 
-    ) internal view {
-        if (!hasRole[role][account]) revert Unauthorized(); 
+        address account,
+        address admin
+    ) internal {
+        if (!hasRole(roles, roles[role].adminRole, admin)) {
+            revert Unauthorized();
+        }
+
+        if (roles[role].members[account]) {
+            roles[role].members[account] = false;
+            emit RoleRevoked(role, account, admin);
+        }
     }
 
     /**
-     * @dev Check if contract is not paused
-     * @param paused Current pause state 
+     * @dev Checks if account has role
      */
-    function requireNotPaused(bool paused) internal pure {
-        if (paused) revert Paused();  
+    function hasRole(
+        mapping(bytes32 => RoleData) storage roles,
+        bytes32 role,
+        address account
+    ) internal view returns (bool) {
+        return roles[role].members[account];
     }
 
     /**
-     * @dev Check if contract is paused
-     * @param paused Current pause state 
+     * @dev Requires that caller has specific role
      */
-    function requirePaused(bool paused) internal pure {
-        if (!paused) revert NotPaused();   
+    function requireRole(mapping(bytes32 => RoleData) storage roles, bytes32 role, address account) internal view {
+        if (!hasRole(roles, role, account)) {
+            revert Unauthorized();
+        }
     }
 
     /**
-     * @dev Check if timelock period has passed
-     * @param timestamp Target timestamp 
+     * @dev Pauses contract functionality
      */
-    function requireTimeLock(uint256 timestamp) internal view {
-        if (block.timestamp < timestamp) revert TimeLockNotMet();   
+    function pause(PauseData storage pauseData, address pauser) internal {
+        pauseData.paused = true;
+        pauseData.pauser = pauser;
+        pauseData.pausedAt = block.timestamp;
+        emit Paused(pauser);
     }
 
     /**
-     * @dev Generate a unique ID based on input parameters
-     * @param creator Creator address
-     * @param nonce Unique nonce
-     * @param data Additional data
-     * @return Unique Identifier 
+     * @dev Unpauses contract functionality
      */
-    function generateId(
-        address creator,
-        uint256 nonce,
-        bytes memory data 
-    ) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(creator, nonce, data)); 
+    function unpause(PauseData storage pauseData, address pauser) internal {
+        pauseData.paused = false;
+        pauseData.pauser = pauser;
+        pauseData.pausedAt = 0;
+        emit Unpaused(pauser);
     }
 
     /**
-     * @dev Verify ECDSA signature
-     * @param hash Message hash
-     * @param signature Signature bytes
-     * @param signer Expected signer address
-     * @return True if signature is valid 
+     * @dev Requires that contract is not paused
      */
-    function verifySignature(
-        bytes32 hash,
-        bytes memory signature,
-        address signer 
-    ) internal pure returns (bool) {
-        if (signature.length != 65) return false;
+    function requireNotPaused(PauseData storage pauseData) internal view {
+        if (pauseData.paused) {
+            revert ContractPaused();
+        }
+    }
+
+    /**
+     * @dev Validates address is not zero
+     */
+    function requireValidAddress(address addr) internal pure {
+        if (addr == address(0)) {
+            revert InvalidAddress();
+        }
+    }
+
+    /**
+     * @dev Validates amount is greater than zero
+     */
+    function requireValidAmount(uint256 amount) internal pure {
+        if (amount == 0) {
+            revert InvalidAmount();
+        }
+    }
+
+    /**
+     * @dev Validates deadline has not expired
+     */
+    function requireNotExpired(uint256 deadline) internal view {
+        if (block.timestamp > deadline) {
+            revert DeadlineExpired();
+        }
+    }
+
+    /**
+     * @dev Checks rate limit for an account
+     */
+    function checkRateLimit(
+        mapping(address => RateLimit) storage rateLimits,
+        address account,
+        uint256 limit,
+        uint256 window
+    ) internal {
+        RateLimit storage userLimit = rateLimits[account];
+
+        // Initialize if first time
+        if (userLimit.limit == 0) {
+            userLimit.limit = limit;
+            userLimit.window = window;
+            userLimit.windowStart = block.timestamp;
+            userLimit.actionCount = 0;
+        }
+
+        // Reset window if expired
+        if (block.timestamp >= userLimit.windowStart + userLimit.window) {
+            userLimit.windowStart = block.timestamp;
+            userLimit.actionCount = 0;
+        }
+
+        // Check if limit exceeded
+        if (userLimit.actionCount >= userLimit.limit) {
+            emit RateLimitExceeded(account, limit);
+            revert("Rate limit exceeded");
+        }
+
+        // Increment counter
+        userLimit.actionCount++;
+        userLimit.lastAction = block.timestamp;
+    }
+
+    /**
+     * @dev Gets next nonce for account
+     */
+    function getNextNonce(NonceTracker storage tracker, address account) internal view returns (uint256) {
+        return tracker.nonces[account];
+    }
+
+    /**
+     * @dev Uses a nonce (marks it as used and increments)
+     */
+    function useNonce(NonceTracker storage tracker, address account, uint256 nonce) internal {
+        if (nonce != tracker.nonces[account]) {
+            revert NonceAlreadyUsed();
+        }
+
+        tracker.usedNonces[account][nonce] = true;
+        tracker.nonces[account]++;
+    }
+
+    /**
+     * @dev Checks if a nonce has been used
+     */
+    function isNonceUsed(NonceTracker storage tracker, address account, uint256 nonce) internal view returns (bool) {
+        return tracker.usedNonces[account][nonce];
+    }
+
+    /**
+     * @dev Validates signature using ECDSA
+     */
+    function validateSignature(bytes32 hash, bytes memory signature, address expectedSigner) internal pure {
+        bytes32 ethSignedMessageHash = getEthSignedMessageHash(hash);
+        address signer = recoverSigner(ethSignedMessageHash, signature);
+
+        if (signer != expectedSigner) {
+            revert InvalidSignature();
+        }
+    }
+
+    /**
+     * @dev Creates ETH signed message hash
+     */
+    function getEthSignedMessageHash(bytes32 messageHash) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
+    }
+
+    /**
+     * @dev Recovers signer from signature
+     */
+    function recoverSigner(bytes32 hash, bytes memory signature) internal pure returns (address) {
+        require(signature.length == 65, "Invalid signature length");
 
         bytes32 r;
         bytes32 s;
@@ -122,131 +267,69 @@ library BaseSecurity {
         assembly {
             r := mload(add(signature, 32))
             s := mload(add(signature, 64))
-            v := byte(0, mload(add(signature, 96))) 
+            v := byte(0, mload(add(signature, 96)))
         }
 
-        if (v < 27) v += 27;
-        if (v != 27 && v != 28) return false;
-
-        address recovered = ecrecover(hash, v, r, s);
-        return recovered != address(0) && recovered == signer; 
-    }
-
-    /**
-     * @dev Create EIP-712 compliant hash
-     * @param domainSeparator Domain Separator
-     * @param structHash Struct hash
-     * @return EIP-712 hash 
-     */
-    function hashTypedData(
-        bytes32 domainSeparator,
-        bytes32 structHash 
-    ) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash)); 
+        return ecrecover(hash, v, r, s);
     }
 
     /**
      * @dev Safe transfer of ETH
-     * @param to Recipient address
-     * @param amount Amount to transfer 
      */
     function safeTransferETH(address to, uint256 amount) internal {
-        validateAddress(to);
-        validateAmount(amount);
-
-        (bool success, ) = payable(to).call{value: amount}("");
-        if (!success) revert("ETH transfer failed");  
+        (bool success, ) = to.call{value: amount}("");
+        require(success, "ETH transfer failed");
     }
 
     /**
-     * @dev Check if transaction is not being replayed
-     * @param used Mapping of used nonces
-     * @param nonce Nonce to check 
+     * @dev Validates that an address is a contract
      */
-    function requireNonceNotUsed(
-        mapping(uint256 => bool) storage used,
-        uint256 nonce 
-    ) internal view {
-        if (used[nonce]) revert AlreadyExecuted();  
+    function requireContract(address addr) internal view {
+        uint256 size;
+        assembly {
+            size := extcodesize(addr)
+        }
+        require(size > 0, "Address is not a contract");
     }
 
     /**
-     * @dev Mark nonce as used
-     * @param used Mapping of used nonces
-     * @param nonce Nonce to mark as used 
+     * @dev Validates that an address is an EOA (not a contract)
      */
-    function markNonceUsed(
-        mapping(uint256 => bool) storage used,
-        uint256 nonce 
-    ) internal {
-        used[nonce] = true;  
+    function requireEOA(address addr) internal view {
+        uint256 size;
+        assembly {
+            size := extcodesize(addr)
+        }
+        require(size == 0, "Address must be EOA");
     }
 
     /**
-     * @dev Rate limiting check
-     * @param lastAction Timestamp of last action
-     * @param cooldown Required cooldown period 
+     * @dev Time-based access control - only allows calls within time window
      */
-    function requireCooldown(uint256 lastAction, uint256 cooldown) internal view {
-        if (block.timestamp < lastAction + cooldown) revert TimeLockNotMet();  
-    }
-}
-
-/**
- * @title Pausable
- * @dev Base contract with pause functionality 
- */
-abstract contract Pausable {
-    using BaseSecurity for bool;
-
-    bool private _paused;
-
-    event Paused(address account);
-    event Unpaused(address account);
-
-    modifier whenNotPaused() {
-        _paused.requireNotPaused();
-        _; 
+    function requireTimeWindow(uint256 startTime, uint256 endTime) internal view {
+        require(block.timestamp >= startTime && block.timestamp <= endTime, "Outside time window");
     }
 
-    modifier whenPaused() {
-        _paused.requirePaused();
-        _;  
+    /**
+     * @dev Validates that a value is within a percentage range of expected
+     */
+    function requireWithinPercentage(uint256 actual, uint256 expected, uint256 toleranceBps) internal pure {
+        uint256 diff = actual > expected ? actual - expected : expected - actual;
+        uint256 maxDiff = (expected * toleranceBps) / 10000;
+        require(diff <= maxDiff, "Value outside tolerance");
     }
 
-    function paused() public view returns (bool) {
-        return _paused;  
+    /**
+     * @dev Validates array length matching
+     */
+    function requireSameLength(uint256 length1, uint256 length2) internal pure {
+        require(length1 == length2, "Array length mismatch");
     }
 
-    function _pause() internal whenNotPaused {
-        _paused = true;
-        emit Paused(msg.sender);   
-    }
-
-    function _unpause() internal whenPaused {
-        _paused = false;
-        emit Unpaused(msg.sender);   
-    }
-}
-
-/**
- * @title ReentrancyGuard
- * @dev Gas-optimized reentrancy protection 
- */
-abstract contract ReentrancyGuard {
-    uint256 private constant _NOT_ENTERED = 1;
-    uint256 private constant _ENTERED = 2;
-
-    uint256 private _status;
-
-    constructor() {
-        _status = _NOT_ENTERED;   
-    }
-
-    modifier nonReentrant() {
-        if (_status == _ENTERED) revert BaseSecurity.AlreadyExecuted();
-        _status = _ENTERED;
-        _;
-        _status = _NOT_ENTERED;   
+    /**
+     * @dev Validates maximum array length
+     */
+    function requireMaxLength(uint256 length, uint256 maxLength) internal pure {
+        require(length <= maxLength, "Array too long");
     }
 }

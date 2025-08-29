@@ -14,9 +14,18 @@
     "forge-std": "github:foundry-rs/forge-std#v1.9.4",
     "hardhat": "^3.0.1",
     "mocha": "^11.7.1",
+    "prettier": "^3.6.2",
+    "prettier-plugin-solidity": "^2.1.0",
     "typescript": "~5.8.0"
   },
   "dependencies": {
+    "@openzeppelin/contracts": "^5.4.0",
     "dotenv": "^17.2.1"
+  },
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "format:solidity": "prettier --write \"contracts/**/*.sol\"",
+    "format:solidity:check": "prettier --check \"contracts/**/*.sol\""
   }
 }
