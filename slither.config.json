@@ -1,0 +1,7 @@
+{
+  "filter_paths": "lib|test",
+  "exclude_dependencies": true,
+  "exclude_informational": false,
+  "exclude_low": false,
+  "fail_on": "medium"
+}

@@ -20,6 +20,7 @@ nothing is deployed to mainnet.
 | Builds | ✅ `forge build`, zero warnings |
 | Tests | ✅ 96 passing — 76 unit, 14 integration, 6 invariants |
 | Coverage | ✅ 99.2% lines, 95.5% branches, 100% functions |
+| Static analysis | ✅ `slither` clean, `solhint` clean at complexity 7 |
 | Deployed (Base Sepolia) | 🚧 not yet |
 | Demo | 🚧 not yet |
 | Audit | ❌ none, and none planned |

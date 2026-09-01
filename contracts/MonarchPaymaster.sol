@@ -242,6 +242,11 @@ contract MonarchPaymaster is IPaymaster, Ownable2Step, ReentrancyGuard {
         if (a.budget < maxCost) revert InsufficientAppBudget(app, maxCost, a.budget);
 
         bytes32 digest = MessageHashUtils.toEthSignedMessageHash(getSponsorshipHash(userOp));
+        // The third return is `errArg`, a diagnostic detail: the offending `s`
+        // value for a malleable signature, or the length for a malformed one.
+        // The decision here rests on `err` and `recovered` alone, and there is
+        // nowhere to report a diagnostic to during validation anyway.
+        // slither-disable-next-line unused-return
         (address recovered, ECDSA.RecoverError err,) =
             ECDSA.tryRecover(digest, pmData[Constants.SIGNATURE_OFFSET:]);
 

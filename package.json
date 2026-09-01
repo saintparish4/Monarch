@@ -11,7 +11,8 @@
     "lint": "solhint 'contracts/**/*.sol'",
     "fmt": "forge fmt && prettier --write '**/*.{md,json,yml}'",
     "fmt:check": "forge fmt --check && prettier --check '**/*.{md,json,yml}'",
-    "snapshot": "forge snapshot"
+    "snapshot": "forge snapshot",
+    "analyze": "slither ."
   },
   "devDependencies": {
     "prettier": "^3.6.2",
