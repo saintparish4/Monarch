@@ -95,26 +95,40 @@ Reproduce with `./run-corpus.sh`.
 |---|---|
 | Fixture suite (self-check) | 9 |
 | `eth-infinitism/account-abstraction` v0.8 — 48 contracts | 0 |
-| `pimlicolabs/singleton-paymaster` | 6 |
-| This project's current paymaster | 0 |
+| The paymaster this was written alongside | 0 |
+| That paymaster's own pre-rewrite code, from git history | 3 |
 
-The Pimlico result deserves care, because it is a deployed, audited, widely used
-contract and this is **not** a claim that it has a bug. `SingletonPaymaster`
-V6, V7 and V8 read `tx.origin` during validation to enforce a bundler allowlist.
-That is a deliberate design with an `allowAllBundlers` flag in `paymasterAndData`
-that short-circuits the read per operation. When the flag is set, the operation
-is ERC-7562-clean; when it is not, the paymaster has chosen to restrict itself to
-bundlers that will tolerate the read.
+The last row is the one that made me write this. Three `block.timestamp` reads
+inside `validatePaymasterUserOp`, in code I had already deleted. One of them I
+had found earlier by reading the file carefully, which took an evening; the
+detector finds all three in under a second.
 
-That is exactly what a detector should surface and a human should triage — and it
-is also a fair statement of this detector's main limitation, which is that it
-reports reachability and cannot see that the read is optional. Suppress an
-accepted deviation the ordinary way:
+Zero on the reference implementation matters just as much. A detector that fires
+on audited, correct code gets switched off, and a detector that is switched off
+finds nothing.
+
+### On third-party contracts
+
+I have run this against deployed third-party paymasters, and one of them
+produces findings. I am not naming it here yet, and the corpus runner does not
+fetch it, because running a detector against someone else's deployed contract and
+publishing the count is a disclosure rather than a benchmark — the maintainers
+should hear it from me before anyone reads it in a table.
+
+What I can say generally, because it is the tool's main limitation rather than
+anyone's bug: the pattern I found was a banned opcode read behind a flag that
+disables it, so the contract is compliant on one path and not on the other. This
+detector reports **reachability**. It cannot see that a read is optional, and it
+will report a case like that as a finding. That is a real false-positive class,
+and until it is path-sensitive the answer is a human triage and the ordinary
+suppression:
 
 ```solidity
 // slither-disable-next-line erc7562-validation-opcodes
-if (!allowAllBundlers && !isBundlerAllowed[tx.origin]) revert BundlerNotAllowed(tx.origin);
+if (!allowAnyBundler && !isBundlerAllowed[tx.origin]) revert NotAllowed();
 ```
+
+Point the runner at your own project with `EXTRA_TARGET=/path/to/project`.
 
 ## Tests
 

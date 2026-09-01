@@ -71,12 +71,12 @@ The paymaster is deployed, staked and funded, and sponsors nothing."""
 
     def _detect(self):
         results = []
-        # Every concrete contract, not `contracts_derived`. A deployable
-        # intermediate — Pimlico's SingletonPaymasterV7, which V8 inherits — is
-        # excluded from `contracts_derived` and is deployed in its own right, so
-        # reporting only the most-derived contract silently drops it. Reporting
-        # the same inherited line once per deployable contract is the honest
-        # answer to "will the thing I deploy be rejected".
+        # Every concrete contract, not `contracts_derived`. Paymasters are
+        # commonly versioned by inheritance — a V8 extending a V7 that is itself
+        # deployed and in use — and `contracts_derived` drops every such
+        # intermediate, because something inherits it. Reporting the same
+        # inherited line once per deployable contract is the honest answer to
+        # "will the thing I deploy be rejected".
         for contract in self.compilation_unit.contracts:
             if contract.is_abstract or contract.is_interface or contract.is_library:
                 continue

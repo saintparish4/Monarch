@@ -49,11 +49,14 @@ SOL
   )
 fi
 
-if [ ! -d "$WORK/singleton-paymaster" ]; then
-  git clone --depth 1 -q \
-    https://github.com/pimlicolabs/singleton-paymaster.git "$WORK/singleton-paymaster"
-  ( cd "$WORK/singleton-paymaster" && forge install >/dev/null 2>&1 )
-fi
+# Any additional target, as a path to a Foundry project:
+#
+#   EXTRA_TARGET=/path/to/some-paymaster ./run-corpus.sh
+#
+# Third-party repositories are not hard-coded here on purpose. Running a
+# detector against someone else's deployed contract and publishing the count is
+# a disclosure, not a benchmark, and the maintainers should hear it from me
+# before anyone reads it in a table.
 
 cp "$HERE/tests/fixtures/Fixtures.sol" "$WORK/Fixtures.sol"
 
@@ -64,8 +67,11 @@ row "fixtures (self-check, expect 9)" \
         --compile-force-framework solc 2>&1 | count )"
 row "eth-infinitism/account-abstraction v0.8" \
     "$( cd "$WORK/upstream" && slither . $DETECT --filter-paths 'src/Corpus' 2>&1 | count )"
-row "pimlicolabs/singleton-paymaster" \
-    "$( cd "$WORK/singleton-paymaster" && slither . $DETECT \
-        --filter-paths 'lib|test|script' 2>&1 | count )"
 row "monarch (current)" \
     "$( cd "$HERE/../.." && slither . $DETECT 2>&1 | count )"
+
+if [ -n "${EXTRA_TARGET:-}" ]; then
+  row "$(basename "$EXTRA_TARGET")" \
+      "$( cd "$EXTRA_TARGET" && slither . $DETECT \
+          --filter-paths 'lib|test|script' 2>&1 | count )"
+fi
