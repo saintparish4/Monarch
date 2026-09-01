@@ -1,0 +1,9 @@
+# Normalise line endings on the way into git. This repo is edited from both
+# WSL and Windows, and without this every file shows as fully modified the
+# moment it is opened in the wrong editor.
+* text=auto eol=lf
+
+# Binary, never touched.
+*.png binary
+*.jpg binary
+*.pdf binary
