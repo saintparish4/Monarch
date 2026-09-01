@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "slither-erc7562"
+version = "0.1.0"
+description = "Slither detectors for ERC-4337 validation-phase rules (ERC-7562)"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+dependencies = ["slither-analyzer>=0.10"]
+
+[project.entry-points."slither_analyzer.plugin"]
+slither-erc7562 = "slither_erc7562:make_plugin"
+
+[tool.setuptools.packages.find]
+include = ["slither_erc7562*"]

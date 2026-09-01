@@ -25,5 +25,10 @@ node_modules
 .next
 /dist
 
+# Python build artefacts from tools/
+__pycache__/
+*.egg-info/
+.venv/
+
 # Internal build notes. Not part of the published repo.
 /base
