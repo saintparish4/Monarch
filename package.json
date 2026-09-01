@@ -1,31 +1,20 @@
 {
-  "name": "Monarch",
-  "version": "1.0.0",
+  "name": "monarch",
+  "version": "0.1.0",
+  "private": true,
+  "description": "An ERC-4337 paymaster that lets a consumer app pay its users' gas",
+  "license": "MIT",
   "type": "module",
-  "devDependencies": {
-    "@nomicfoundation/hardhat-ignition": "^3.0.0",
-    "@nomicfoundation/hardhat-toolbox-mocha-ethers": "^3.0.0",
-    "@types/chai": "^4.3.20",
-    "@types/chai-as-promised": "^8.0.2",
-    "@types/mocha": "^10.0.10",
-    "@types/node": "^22.18.0",
-    "chai": "^5.3.3",
-    "ethers": "^6.15.0",
-    "forge-std": "github:foundry-rs/forge-std#v1.9.4",
-    "hardhat": "^3.0.1",
-    "mocha": "^11.7.1",
-    "prettier": "^3.6.2",
-    "prettier-plugin-solidity": "^2.1.0",
-    "typescript": "~5.8.0"
-  },
-  "dependencies": {
-    "@openzeppelin/contracts": "^5.4.0",
-    "dotenv": "^17.2.1"
-  },
   "scripts": {
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "format:solidity": "prettier --write \"contracts/**/*.sol\"",
-    "format:solidity:check": "prettier --check \"contracts/**/*.sol\""
+    "build": "forge build",
+    "test": "forge test",
+    "lint": "solhint 'contracts/**/*.sol'",
+    "fmt": "forge fmt && prettier --write '**/*.{md,json,yml}'",
+    "fmt:check": "forge fmt --check && prettier --check '**/*.{md,json,yml}'",
+    "snapshot": "forge snapshot"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2",
+    "solhint": "^5.0.5"
   }
 }

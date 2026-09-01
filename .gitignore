@@ -1,23 +1,29 @@
-# Node modules
-/node_modules
-
-# Compilation output
-/dist
-
-# pnpm deploy output
-/bundle
-
-# Hardhat Build Artifacts
-/artifacts
-
-# Hardhat compilation (v2) support directory
+# Foundry
+/out
 /cache
+/broadcast/*/31337
+/broadcast/**/dry-run
 
-# Typechain output
-/types
+# `lib/` is NOT ignored. `forge install` uses git submodules, so what gets
+# committed is a 40-byte gitlink per dependency, not three dependency trees —
+# and CI needs those gitlinks to check anything out at all.
+# `foundry.lock` pins the resolved revisions and is committed for the same
+# reason as package-lock.json: a build that resolves dependencies differently on
+# different days is not reproducible.
 
-# Hardhat coverage reports
-/coverage
+# Gas snapshots are committed on purpose: the numbers are only useful if they
+# are public and reviewable in a diff. Only the transient one goes.
+.gas-snapshot.tmp
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules
+.next
+/dist
 
 # Internal build notes. Not part of the published repo.
 /base

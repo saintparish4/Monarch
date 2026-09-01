@@ -1,0 +1,51 @@
+# Monarch build configuration.
+#
+# Why this file looks the way it does:
+#   - `src` is `contracts/`, not Foundry's default `src/`, because the repo
+#     already had that layout and moving four files to satisfy a default is
+#     churn.
+#   - `solc` is pinned exactly. A floating pragma on a contract that custodies
+#     user deposits means the deployed bytecode depends on who compiled it.
+#   - `deny_warnings` makes "zero warnings" a property CI can enforce instead
+#     of a claim in a README.
+
+[profile.default]
+src = "contracts"
+test = "test"
+script = "script"
+out = "out"
+libs = ["lib"]
+solc = "0.8.28"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 200
+via_ir = false
+deny = "warnings"
+gas_reports = ["MonarchPaymaster"]
+
+# `forge lint` runs inside `forge build`, and `deny = "warnings"` makes it
+# blocking. Scope it to `contracts/`: test code sends ETH to arbitrary addresses
+# and reaches into internals on purpose, so production severities there are
+# noise. Coverage is scoped the same way, for the same reason.
+[lint]
+ignore = ["test/*", "test/**/*", "script/*", "script/**/*"]
+
+[profile.ci]
+verbosity = 3
+fuzz = { runs = 1024 }
+invariant = { runs = 512, depth = 64, fail_on_revert = true }
+
+# The tests fork Base Sepolia to exercise real EntryPoint v0.8 bytecode
+# rather than a mock, which would agree with whatever I believe about the
+# interface — and being wrong about that interface is what I am rebuilding.
+[rpc_endpoints]
+base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
+
+[fmt]
+line_length = 100
+tab_width = 4
+bracket_spacing = false
+int_types = "long"
+
+[etherscan]
+base_sepolia = { key = "${BASESCAN_API_KEY}", chain = 84532 }
