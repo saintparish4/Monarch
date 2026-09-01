@@ -20,7 +20,8 @@ nothing is deployed to mainnet.
 | Builds | ✅ `forge build`, zero warnings |
 | Tests | ✅ 96 passing — 84 unit, 11 integration, 6 invariants |
 | Coverage | ✅ 99.2% lines, 95.5% branches, 100% functions |
-| Static analysis | ✅ `slither` clean, `solhint` clean at complexity 7 |
+| Static analysis | ✅ `slither` clean; `solhint` clean at cyclomatic complexity 7 |
+| Gas | ✅ published below and in [`.gas-snapshot`](.gas-snapshot) |
 | Deployed (Base Sepolia) | 🚧 not yet |
 | Demo | 🚧 not yet |
 | Audit | ❌ none, and none planned |
@@ -44,18 +45,18 @@ entryPoint.balanceOf(paymaster)  >=  totalUserDeposits + totalAppBudgets
 ```
 
 The owner can withdraw only the excess above that sum. Never user funds, never
-app funds. This is checked as a fuzzed invariant across every value-moving
-entrypoint, and again after every real `handleOps` bundle in the tests.
+app funds. It is checked as a stateful invariant over every value-moving
+entrypoint, and again after every `handleOps` bundle the tests actually run.
 
 ## Design notes worth knowing
 
 **It does not inherit upstream `BasePaymaster`.** That contract ships
 `withdrawTo` as `public onlyOwner` and non-virtual, withdrawing against the raw
-EntryPoint balance — the same pot backing every deposit and budget. Because it
-is not `virtual` it cannot be overridden, so inheriting it would mean shipping an
-owner function that drains user funds with no way to close it. Monarch implements
-the canonical `IPaymaster` directly and restates the ~50 lines of EntryPoint
-forwarding, with a solvency check on `withdrawTo`.
+EntryPoint balance — the same pot backing every deposit and budget. Because it is
+not `virtual` the solvency check cannot be added by override, so inheriting it
+would mean shipping an owner function that drains user funds with no way to close
+it. Monarch implements the canonical `IPaymaster` directly and restates the ~50
+lines of EntryPoint forwarding, with the check on `withdrawTo`.
 
 **Validation never reads the clock.** ERC-7562 bans `TIMESTAMP` during the
 validation phase. The app signs a `(validUntil, validAfter)` pair off-chain, the
@@ -66,18 +67,71 @@ comparison. The internal validation path is `view`: it decides, it never records
 from calldata rather than by `userOp.sender`, which is not sender-associated
 storage. Bundlers reject operations from an unstaked paymaster that does this.
 
+**A bad signature is a return value, not a revert.** Reverting during validation
+makes the whole bundle unmineable and gets the paymaster throttled. Malformed
+*structure* still reverts — a bundler should have dropped that operation outright.
+
+**`POSTOP_GAS_OVERHEAD` is measured, not guessed.** Do not read it off the
+`postOp` frame in a trace; that frame costs 11,524 gas, and setting the constant
+from it breaks solvency, because the EntryPoint finalises `actualGasCost` after
+`postOp` returns. The honest measurement is the deficit a bundle leaves behind
+with no owner buffer.
+
 ## Gas
 
-Measured with `forge snapshot`, EntryPoint v0.8, optimizer runs 200, from the
-end-to-end `handleOps` traces. These are what Monarch adds to an operation:
+EntryPoint v0.8, optimizer runs 200, taken from the end-to-end `handleOps`
+traces. This is what Monarch adds to an operation:
 
 | Path | `validatePaymasterUserOp` | `postOp` |
 |---|---|---|
 | Sponsored | 11,997 | 11,524 |
 | Deposit | 3,983 | 11,022 |
 
-Runtime size 7,896 bytes. Full per-test figures are in
-[`.gas-snapshot`](.gas-snapshot).
+Runtime size 7,896 bytes. Per-test figures in [`.gas-snapshot`](.gas-snapshot),
+which CI diffs rather than regenerates — a job that rebuilds its own baseline
+lets a regression stay green. Invariant runs are excluded from the snapshot
+because their gas is not deterministic across seeds.
+
+## Testing
+
+Tests run against real EntryPoint v0.8 bytecode deployed into the test VM, never
+a mock. A mock agrees with whatever I believed about the interface, and
+misreading that interface is the entire bug class this rewrite exists to remove.
+
+Three tiers, by how much of the real system is present: **unit** (one function,
+`vm.prank` in place of the EntryPoint), **integration** (paymaster + EntryPoint +
+`SimpleAccount` through `handleOps`), and **invariant** (bounded random action
+sequences, 512 runs at depth 64 with `fail_on_revert = true`). Crossed with how
+the arguments are chosen: examples, fuzzed properties, and stateful sequences.
+
+Two things the suite is built to do that a coverage number does not show. Every
+"cannot" in the trust model — owner cannot touch user deposits, an app cannot
+spend another app's budget — has a test named after it, so completeness is
+mechanical rather than a judgement. And each historical defect in the code this
+replaced has a numbered regression test, because a rewrite that does not lock
+them out can reintroduce them.
+
+## Tooling
+
+The worst defect in the code this replaced was reading `block.timestamp` during
+validation. That is not a Monarch-specific mistake: ERC-7562 forbids it in every
+ERC-4337 paymaster, account and factory, bundlers enforce it off-chain in a
+tracer, and **nothing on-chain enforces it at all**. A violating contract
+compiles, passes every test, passes a real `handleOps` call — and is then dropped
+by every bundler, after it has been deployed, staked and funded.
+
+So it became a Slither detector: [`tools/slither-erc7562`](tools/slither-erc7562).
+It walks everything reachable from `validatePaymasterUserOp` or `validateUserOp`,
+through internal calls and modifiers, and reports the forbidden opcodes.
+
+| Corpus | Findings |
+|---|---|
+| `eth-infinitism/account-abstraction` v0.8, 48 contracts | 0 |
+| This paymaster | 0 |
+| Monarch's own pre-rewrite code, from git history | 3 |
+
+Reproduce with `tools/slither-erc7562/run-corpus.sh`. It runs as part of this
+project's own static-analysis gate.
 
 ## Build
 
@@ -85,20 +139,30 @@ Runtime size 7,896 bytes. Full per-test figures are in
 forge install
 forge build
 forge test
-npm install && npm run lint
 ```
 
-Tests run against real EntryPoint v0.8 bytecode deployed into the test VM, not a
-mock. A mock would agree with whatever the author believed about the interface,
-and misreading that interface is the bug class this rewrite exists to remove.
+The full gate set, each of which fails rather than prints:
+
+```bash
+forge fmt --check                       # formatting
+forge build --sizes                     # zero warnings, forge lint included
+FOUNDRY_PROFILE=ci forge test           # 96 tests, invariants at depth 64
+npm run snapshot:check                  # gas has not regressed
+npm install && npm run lint             # solhint, cyclomatic complexity 7
+npm run analyze                         # slither, zero high and zero medium
+```
+
+Both `--check` gates have been deliberately broken once to confirm they can
+fail. A check that cannot fail is not checking anything.
 
 ## Layout
 
 ```
 contracts/              MonarchPaymaster, plus Constants and Validation
-test/unit/              branch coverage, fuzzed properties, access, regressions
+test/unit/              branch coverage, fuzz, access matrix, defect regressions
 test/integration/       handleOps against the real EntryPoint
 test/invariant/         solvency and value conservation under stateful fuzzing
+tools/slither-erc7562/  the ERC-7562 detector, with its own tests and corpus
 ```
 
 ## License

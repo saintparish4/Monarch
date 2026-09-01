@@ -256,6 +256,7 @@ contract BundleTest is Fixture {
 
         (uint96 otherBudget,) = paymaster.apps(otherApp);
         assertEq(otherBudget, 2 ether, "an unrelated app is untouched");
+        _assertSolvent("solvency after a bundle with a second funded app");
     }
 
     // ------------------------------------------------------------- signatures
