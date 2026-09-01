@@ -14,7 +14,7 @@
 # Gas snapshots are committed on purpose: the numbers are only useful if they
 # are public and reviewable in a diff. Only the transient one goes.
 .gas-snapshot.tmp
-
+.claude/
 # Secrets
 .env
 .env.*
