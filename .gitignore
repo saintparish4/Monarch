@@ -32,3 +32,6 @@ __pycache__/
 
 # Internal build notes. Not part of the published repo.
 /base
+
+# demo build output
+dist/

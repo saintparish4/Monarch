@@ -12,18 +12,20 @@ so it works with EIP-7702 delegated EOAs as well as deployed smart accounts.
 
 ## Status
 
-Work in progress, rebuilt from an earlier draft. Nothing here is audited and
-nothing is deployed to mainnet.
+The contract is complete and every claim below names the gate that enforces it.
+It is not audited, and nothing is deployed to mainnet — nor should it be.
 
 | | |
 |---|---|
-| Builds | ✅ `forge build`, zero warnings |
-| Tests | ✅ 96 passing — 84 unit, 11 integration, 6 invariants |
+| Builds | ✅ `forge build`, zero warnings, `deny = "warnings"` |
+| Tests | ✅ 96 passing — 84 unit, 11 integration, 6 invariants, against real EntryPoint v0.8 bytecode |
 | Coverage | ✅ 99.2% lines, 95.5% branches, 100% functions |
 | Static analysis | ✅ `slither` clean; `solhint` clean at cyclomatic complexity 7 |
-| Gas | ✅ published below and in [`.gas-snapshot`](.gas-snapshot) |
-| Deployed (Base Sepolia) | 🚧 not yet |
-| Demo | 🚧 not yet |
+| ERC-7562 compliance | ✅ enforced by [a Slither detector written for it](#tooling), 0 findings here, 3 on this repo's own pre-rewrite code |
+| Gas | ✅ published below and in [`.gas-snapshot`](.gas-snapshot), which CI diffs rather than regenerates |
+| Deploy | ✅ [one script](script/Deploy.s.sol) — deploy, stake, deposit, register, fund, then re-check solvency on chain |
+| Demo | ✅ [`demo/`](demo) — a zero-ETH wallet writes to a contract, end to end |
+| Deployed (Base Sepolia) | 🚧 one command away; see [Deploy](#deploy) |
 | Audit | ❌ none, and none planned |
 
 ## How it works
@@ -155,6 +157,50 @@ npm run analyze                         # slither, zero high and zero medium
 Both `--check` gates have been deliberately broken once to confirm they can
 fail. A check that cannot fail is not checking anything.
 
+## Deploy
+
+```bash
+export PRIVATE_KEY=0x...            # deployer; also becomes owner
+export APP_ADDRESS=0x...            # the app whose budget pays
+export APP_SIGNER_ADDRESS=0x...     # the key that authorises sponsorships
+export BASE_SEPOLIA_RPC_URL=https://sepolia.base.org
+
+forge script script/Deploy.s.sol --rpc-url base_sepolia --broadcast --verify
+```
+
+The script does four things that are each easy to skip and each fatal:
+
+1. **deploy**
+2. **`addStake`** — sponsored mode reads `apps[app]`, keyed by an address from
+   calldata rather than by `userOp.sender`. That is not sender-associated
+   storage, so under ERC-7562 an *unstaked* paymaster doing it is dropped by
+   every bundler. An unstaked deployment passes its own tests and then works
+   for nobody.
+3. **`deposit`** — stake and deposit are different pots. The EntryPoint pays
+   the bundler out of the deposit; funding the stake is not funding it.
+4. **`registerApp` + `fundApp`** — the budget `postOp` actually charges.
+
+It then reads the chain back and asserts the same solvency identity the
+invariant suite enforces, so a deployment that looks fine on a block explorer
+but is not solvent fails at deploy time rather than at the first operation.
+
+## Try it
+
+[`demo/`](demo) is a two-process demo: a page that generates a burner key with
+no ETH, and a sponsor backend holding the app signer. The page writes to a
+guestbook contract; the app's budget pays.
+
+```bash
+cd demo && cp .env.example .env   # addresses the deploy script printed
+npm install && npm run dev
+```
+
+The demo's TypeScript encoder and [`Constants.sol`](contracts/libraries/Constants.sol)
+are two copies of one byte layout, so the demo's tests **parse the offsets out
+of the Solidity source** and assert the TypeScript agrees. Drift there decodes a
+plausible, wrong app address rather than failing loudly — the same bug class the
+rest of this repository exists to remove.
+
 ## Layout
 
 ```
@@ -163,6 +209,8 @@ test/unit/              branch coverage, fuzz, access matrix, defect regressions
 test/integration/       handleOps against the real EntryPoint
 test/invariant/         solvency and value conservation under stateful fuzzing
 tools/slither-erc7562/  the ERC-7562 detector, with its own tests and corpus
+script/                 deploy, and the demo's guestbook target
+demo/                   the zero-ETH demo: sponsor backend + page
 ```
 
 ## License
