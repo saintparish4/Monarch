@@ -22,7 +22,8 @@ It is not audited, and nothing is deployed to mainnet — nor should it be.
 | Coverage | ✅ 99.2% lines, 95.5% branches, 100% functions |
 | Static analysis | ✅ `slither` clean; `solhint` clean at cyclomatic complexity 7 |
 | ERC-7562 compliance | ✅ enforced by [a Slither detector written for it](#tooling), 0 findings here, 3 on this repo's own pre-rewrite code |
-| Gas | ✅ published below and in [`.gas-snapshot`](.gas-snapshot), which CI diffs rather than regenerates |
+| Gas | ✅ published below and in [`.gas-snapshot`](.gas-snapshot); `npm run snapshot:check` diffs it rather than regenerating |
+| Continuous integration | ❌ none — this repository has no workflows, so every gate above is one a contributor runs locally |
 | Deploy | ✅ [one script](script/Deploy.s.sol) — deploy, stake, deposit, register, fund, then re-check solvency on chain |
 | Demo | ✅ [`demo/`](demo) — a zero-ETH wallet writes to a contract, end to end |
 | Deployed (Base Sepolia) | 🚧 one command away; see [Deploy](#deploy) |
@@ -90,8 +91,10 @@ traces. This is what Monarch adds to an operation:
 | Deposit | 3,983 | 11,022 |
 
 Runtime size 7,896 bytes. Per-test figures in [`.gas-snapshot`](.gas-snapshot),
-which CI diffs rather than regenerates — a job that rebuilds its own baseline
-lets a regression stay green. Invariant runs are excluded from the snapshot
+which `npm run snapshot:check` diffs rather than regenerates — a check that
+rebuilds its own baseline lets a regression stay green. Note that nothing runs
+it automatically: this repository has no CI, so the gate is only as good as the
+contributor remembering to run it. Invariant runs are excluded from the snapshot
 because their gas is not deterministic across seeds.
 
 ## Testing
