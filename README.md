@@ -17,16 +17,16 @@ so it works with EIP-7702 delegated EOAs as well as deployed smart accounts.
 Work in progress, rebuilt from an earlier draft. Nothing here is audited and
 nothing is deployed to mainnet.
 
-| | |
-|---|---|
-| Builds | ✅ `forge build`, zero warnings |
-| Tests | ✅ 96 passing — 84 unit, 11 integration, 6 invariants |
-| Coverage | ✅ 99.2% lines, 95.5% branches, 100% functions |
-| Static analysis | ✅ `slither` clean; `solhint` clean at cyclomatic complexity 7 |
-| Gas | ✅ published below and in [`.gas-snapshot`](.gas-snapshot) |
+|                         |                                                                                                                                                                                           |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Builds                  | ✅ `forge build`, zero warnings                                                                                                                                                           |
+| Tests                   | ✅ 96 passing — 84 unit, 11 integration, 6 invariants                                                                                                                                     |
+| Coverage                | ✅ 99.2% lines, 95.5% branches, 100% functions                                                                                                                                            |
+| Static analysis         | ✅ `slither` clean; `solhint` clean at cyclomatic complexity 7                                                                                                                            |
+| Gas                     | ✅ published below and in [`.gas-snapshot`](.gas-snapshot)                                                                                                                                |
 | Deployed (Base Sepolia) | ✅ [`0xd73bc166…bDad`](https://base-sepolia.blockscout.com/address/0xd73bc166E95D630a52740f0013Df6F926255bDad), source verified on Sourcify and Blockscout; see [Deployment](#deployment) |
-| Demo | ✅ a zero-ETH wallet sends sponsored operations through a public bundler; see [Demo](#demo) |
-| Audit | ❌ none, and none planned |
+| Demo                    | ✅ a zero-ETH wallet sends sponsored operations through a public bundler; see [Demo](#demo)                                                                                               |
+| Audit                   | ❌ none, and none planned                                                                                                                                                                 |
 
 ## How it works
 
@@ -71,7 +71,7 @@ storage. Bundlers reject operations from an unstaked paymaster that does this.
 
 **A bad signature is a return value, not a revert.** Reverting during validation
 makes the whole bundle unmineable and gets the paymaster throttled. Malformed
-*structure* still reverts — a bundler should have dropped that operation outright.
+_structure_ still reverts — a bundler should have dropped that operation outright.
 
 **`POSTOP_GAS_OVERHEAD` is measured, not guessed.** Do not read it off the
 `postOp` frame in a trace; that frame costs 11,524 gas, and setting the constant
@@ -86,12 +86,12 @@ lines.
 
 ## Deployment
 
-| | Base Sepolia (84532) |
-|---|---|
-| MonarchPaymaster | [`0xd73bc166E95D630a52740f0013Df6F926255bDad`](https://base-sepolia.blockscout.com/address/0xd73bc166E95D630a52740f0013Df6F926255bDad) |
-| EntryPoint | `0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108` (v0.8) |
-| Stake | 0.01 ETH, one-day unstake delay |
-| Source | exact match on [Sourcify](https://repo.sourcify.dev/84532/0xd73bc166E95D630a52740f0013Df6F926255bDad); verified on [Blockscout](https://base-sepolia.blockscout.com/address/0xd73bc166E95D630a52740f0013Df6F926255bDad?tab=contract) |
+|                  | Base Sepolia (84532)                                                                                                                                                                                                                 |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| MonarchPaymaster | [`0xd73bc166E95D630a52740f0013Df6F926255bDad`](https://base-sepolia.blockscout.com/address/0xd73bc166E95D630a52740f0013Df6F926255bDad)                                                                                               |
+| EntryPoint       | `0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108` (v0.8)                                                                                                                                                                                  |
+| Stake            | 0.01 ETH, one-day unstake delay                                                                                                                                                                                                      |
+| Source           | exact match on [Sourcify](https://repo.sourcify.dev/84532/0xd73bc166E95D630a52740f0013Df6F926255bDad); verified on [Blockscout](https://base-sepolia.blockscout.com/address/0xd73bc166E95D630a52740f0013Df6F926255bDad?tab=contract) |
 
 Every address and transaction hash is in
 [`deployments/base-sepolia.json`](deployments/base-sepolia.json). Deploying,
@@ -117,10 +117,10 @@ to sponsor and signs the authorisation. The paymaster charges the app's budget.
 
 First live run, 2026-09-17:
 
-| Operation | Transaction | Gas used | Charged to the app |
-|---|---|---|---|
-| First (also deploys the account) | [`0xc30a804a…17cd`](https://base-sepolia.blockscout.com/tx/0xc30a804ac6181b2b16c7ed502f7bb692fed744fe91d265fca1309af87a2017cd) | 274,445 | 0.0000017492 ETH |
-| Second | [`0x98a46358…1a72`](https://base-sepolia.blockscout.com/tx/0x98a463588fb8dce8b8c0c034e40c65f547febbba461c41fccdcba82d43ad1a72) | 132,635 | 0.0000008842 ETH |
+| Operation                        | Transaction                                                                                                                    | Gas used | Charged to the app |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | -------- | ------------------ |
+| First (also deploys the account) | [`0xc30a804a…17cd`](https://base-sepolia.blockscout.com/tx/0xc30a804ac6181b2b16c7ed502f7bb692fed744fe91d265fca1309af87a2017cd) | 274,445  | 0.0000017492 ETH   |
+| Second                           | [`0x98a46358…1a72`](https://base-sepolia.blockscout.com/tx/0x98a463588fb8dce8b8c0c034e40c65f547febbba461c41fccdcba82d43ad1a72) | 132,635  | 0.0000008842 ETH   |
 
 The owner key and the smart account both held 0 ETH before and after.
 
@@ -139,10 +139,10 @@ unauthenticated, which is fine for a testnet budget and nothing else.
 EntryPoint v0.8, optimizer runs 200, taken from the end-to-end `handleOps`
 traces. This is what Monarch adds to an operation:
 
-| Path | `validatePaymasterUserOp` | `postOp` |
-|---|---|---|
-| Sponsored | 11,997 | 11,524 |
-| Deposit | 3,983 | 11,022 |
+| Path      | `validatePaymasterUserOp` | `postOp` |
+| --------- | ------------------------- | -------- |
+| Sponsored | 11,997                    | 11,524   |
+| Deposit   | 3,983                     | 11,022   |
 
 Runtime size 7,896 bytes. Per-test figures in [`.gas-snapshot`](.gas-snapshot),
 which CI diffs rather than regenerates — a job that rebuilds its own baseline
@@ -181,11 +181,11 @@ So it became a Slither detector: [`tools/slither-erc7562`](tools/slither-erc7562
 It walks everything reachable from `validatePaymasterUserOp` or `validateUserOp`,
 through internal calls and modifiers, and reports the forbidden opcodes.
 
-| Corpus | Findings |
-|---|---|
-| `eth-infinitism/account-abstraction` v0.8, 48 contracts | 0 |
-| This paymaster | 0 |
-| Monarch's own pre-rewrite code, from git history | 3 |
+| Corpus                                                  | Findings |
+| ------------------------------------------------------- | -------- |
+| `eth-infinitism/account-abstraction` v0.8, 48 contracts | 0        |
+| This paymaster                                          | 0        |
+| Monarch's own pre-rewrite code, from git history        | 3        |
 
 Reproduce with `tools/slither-erc7562/run-corpus.sh`. It runs as part of this
 project's own static-analysis gate.

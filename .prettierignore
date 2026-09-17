@@ -2,10 +2,17 @@
 node_modules/
 package-lock.json
 
+# Vendored submodules. `lib/` is tracked, not gitignored, so Prettier sees
+# it unless told otherwise. `.solhintignore` skips it for the same reason.
+lib/
+
 # Build artifacts
 artifacts/
 cache/
 out/
+
+# Foundry broadcast logs (generated deploy artifacts, not source)
+broadcast/
 
 # Coverage
 coverage/

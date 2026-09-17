@@ -49,20 +49,20 @@ For every concrete contract with a `validatePaymasterUserOp` or `validateUserOp`
 entry point, it walks everything reachable from that function — through internal
 calls **and through modifiers** — and reports any of:
 
-| Solidity | Opcode |
-|---|---|
-| `block.timestamp` | TIMESTAMP |
-| `block.number` | NUMBER |
+| Solidity                                | Opcode                  |
+| --------------------------------------- | ----------------------- |
+| `block.timestamp`                       | TIMESTAMP               |
+| `block.number`                          | NUMBER                  |
 | `block.difficulty` / `block.prevrandao` | DIFFICULTY / PREVRANDAO |
-| `block.coinbase` | COINBASE |
-| `block.gaslimit` | GASLIMIT |
-| `block.basefee` / `block.blobbasefee` | BASEFEE / BLOBBASEFEE |
-| `blockhash(...)` | BLOCKHASH |
-| `blobhash(...)` | BLOBHASH |
-| `tx.origin` | ORIGIN |
-| `tx.gasprice` | GASPRICE |
-| `address(x).balance` | BALANCE / SELFBALANCE |
-| `selfdestruct(...)` | SELFDESTRUCT |
+| `block.coinbase`                        | COINBASE                |
+| `block.gaslimit`                        | GASLIMIT                |
+| `block.basefee` / `block.blobbasefee`   | BASEFEE / BLOBBASEFEE   |
+| `blockhash(...)`                        | BLOCKHASH               |
+| `blobhash(...)`                         | BLOBHASH                |
+| `tx.origin`                             | ORIGIN                  |
+| `tx.gasprice`                           | GASPRICE                |
+| `address(x).balance`                    | BALANCE / SELFBALANCE   |
+| `selfdestruct(...)`                     | SELFDESTRUCT            |
 
 `block.chainid` is permitted and is not reported. It is also load-bearing: a
 sponsorship signature that does not commit to the chain id replays across chains.
@@ -82,7 +82,7 @@ rule is worse than one that says which rules it covers.
 - **CREATE.** Permitted for a factory deploying the sender. Same problem.
 - **External calls to addresses that are not sender-associated.** The rule is
   about the address, not the call. Needs the storage-association analysis.
-- **Storage access rules.** ERC-7562 also restricts *which* slots validation may
+- **Storage access rules.** ERC-7562 also restricts _which_ slots validation may
   read. That is the other half of the standard and the natural next detector.
 - **Path sensitivity.** A banned opcode behind a flag that can disable it is
   still reported. See the note on `allowAllBundlers` below.
@@ -91,12 +91,12 @@ rule is worse than one that says which rules it covers.
 
 Reproduce with `./run-corpus.sh`.
 
-| Target | Findings |
-|---|---|
-| Fixture suite (self-check) | 9 |
-| `eth-infinitism/account-abstraction` v0.8 — 48 contracts | 0 |
-| The paymaster this was written alongside | 0 |
-| That paymaster's own pre-rewrite code, from git history | 3 |
+| Target                                                   | Findings |
+| -------------------------------------------------------- | -------- |
+| Fixture suite (self-check)                               | 9        |
+| `eth-infinitism/account-abstraction` v0.8 — 48 contracts | 0        |
+| The paymaster this was written alongside                 | 0        |
+| That paymaster's own pre-rewrite code, from git history  | 3        |
 
 The last row is the one that made me write this. Three `block.timestamp` reads
 inside `validatePaymasterUserOp`, in code I had already deleted. One of them I
@@ -137,7 +137,7 @@ Point the runner at your own project with `EXTRA_TARGET=/path/to/project`.
 ```
 
 Nine fixtures and two attribution checks. The negative cases — a clean paymaster
-using `block.chainid`, and a contract reading the clock *outside* validation —
+using `block.chainid`, and a contract reading the clock _outside_ validation —
 matter as much as the positive ones. A detector that fires on correct code gets
 turned off, and a detector that is turned off finds nothing.
 
