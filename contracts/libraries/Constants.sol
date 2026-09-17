@@ -31,6 +31,19 @@ library Constants {
     ///      constants and not literals at the call site.
     uint256 internal constant PAYMASTER_DATA_OFFSET = 52;
 
+    /// @notice Where the two paymaster gas limits start. They are adjacent
+    ///         uint128s, so together they are exactly one 32-byte word:
+    ///         `[GAS_LIMITS_OFFSET:MODE_OFFSET]`, verification in the high half
+    ///         and postOp in the low half.
+    /// @dev Monarch reads the postOp half during validation because the
+    ///      EntryPoint charges a penalty for the part of it that goes unused,
+    ///      and bills that penalty to the paymaster after `postOp` has already
+    ///      decided what to charge, and because too small a limit starves
+    ///      `postOp` entirely. See `MonarchPaymaster.MIN_POSTOP_GAS_LIMIT`.
+    ///      Reading the whole word and masking is 104 gas cheaper than slicing
+    ///      the 16 bytes out on their own.
+    uint256 internal constant GAS_LIMITS_OFFSET = 20;
+
     /// @dev Monarch's own `paymasterData`, relative to PAYMASTER_DATA_OFFSET:
     ///
     ///        Deposit    [+0]      mode = 0x00

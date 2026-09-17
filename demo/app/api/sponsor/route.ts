@@ -34,9 +34,25 @@ const MODE_SPONSORED = 1;
 
 // Both paymaster gas limits sit inside the signed digest, so they are fixed
 // here rather than taken from the request: the client cannot raise them, and
-// with them the most an operation can charge the app. Measured on-chain cost
-// is about 12k gas for validation and 11.5k for postOp.
-const PAYMASTER_VERIFICATION_GAS = 60_000n;
+// with them the most an operation can charge the app.
+//
+// Neither is the cost of the corresponding function, and reading them off a
+// gas report is how you end up with an endpoint that fails every operation.
+//
+//   Verification: the EntryPoint's `AA36` check measures `preGas - gasleft()`
+//   across decrementing the paymaster's deposit, re-encoding the whole userOp,
+//   the call itself and the returned context — 22,750 gas, against a
+//   `validatePaymasterUserOp` frame of 12,131. 35,000 is that with half again
+//   on top. This was 60,000, which looked five times looser than it was.
+//
+//   postOp: well clear of the paymaster's `MIN_POSTOP_GAS_LIMIT`, below which
+//   postOp is starved and nobody is charged at all, and at the EntryPoint's
+//   penalty threshold, above which it bills the payer a tenth of whatever goes
+//   unused. 40,000 is the largest limit that costs an honest operation nothing.
+//
+// Both are pinned by `test_theRouteVerificationGasLimitCoversADeployingOperation`
+// and `test_theRoutePostOpGasLimitIsAboveTheFloorAndUntaxed`.
+const PAYMASTER_VERIFICATION_GAS = 35_000n;
 const PAYMASTER_POSTOP_GAS = 40_000n;
 
 // A sponsorship is good for ten minutes. The paymaster never reads the clock —
@@ -111,38 +127,49 @@ export async function POST(request: Request) {
     return fail(403, `declined: max cost ${maxCost} wei exceeds the ${MAX_COST_WEI} wei ceiling`);
   }
 
-  // Fail here, with a message a person can act on, rather than at the bundler
-  // as a bare signature or budget error.
-  const [budget, registeredSigner] = await publicClient.readContract({
-    address: config.paymaster,
-    abi: paymasterAbi,
-    functionName: "apps",
-    args: [config.app],
-  });
+  // Two independent reads, so they go out together. They used to run in
+  // sequence, which put a whole extra round trip on the path between the click
+  // and the wallet having anything to sign.
+  //
+  // The first is a courtesy: fail here, with a message a person can act on,
+  // rather than at the bundler as a bare signature or budget error.
+  //
+  // The second is the digest, computed by the paymaster itself over eth_call
+  // rather than re-derived here. Re-implementing the packing is the easiest way
+  // to sign something subtly different from what the contract checks. It covers
+  // `paymasterAndData` only up to the signature, so hashing the unsigned prefix
+  // gives the same digest as hashing the finished bytes.
+  //
+  // Running them in parallel means the digest is fetched even for a request
+  // that is about to be declined. That is one wasted eth_call on the unhappy
+  // path, against a round trip saved on every happy one.
+  const [[budget, registeredSigner], hash] = await Promise.all([
+    publicClient.readContract({
+      address: config.paymaster,
+      abi: paymasterAbi,
+      functionName: "apps",
+      args: [config.app],
+    }),
+    publicClient.readContract({
+      address: config.paymaster,
+      abi: paymasterAbi,
+      functionName: "getSponsorshipHash",
+      args: [
+        toPackedUserOperation({
+          ...userOperation,
+          paymaster: config.paymaster,
+          paymasterVerificationGasLimit: PAYMASTER_VERIFICATION_GAS,
+          paymasterPostOpGasLimit: PAYMASTER_POSTOP_GAS,
+          paymasterData: prefix,
+        }),
+      ],
+    }),
+  ]);
+
   if (!isAddressEqual(registeredSigner, signer.address)) {
     return fail(500, `this server signs as ${signer.address}, but the app's signer is ${registeredSigner}`);
   }
   if (budget < maxCost) return fail(503, `app budget ${budget} wei cannot cover ${maxCost} wei`);
-
-  // The digest is computed by the paymaster itself over eth_call, not
-  // re-derived here. Re-implementing the packing is the easiest way to sign
-  // something subtly different from what the contract checks. It covers
-  // `paymasterAndData` only up to the signature, so hashing the unsigned
-  // prefix gives the same digest as hashing the finished bytes.
-  const hash = await publicClient.readContract({
-    address: config.paymaster,
-    abi: paymasterAbi,
-    functionName: "getSponsorshipHash",
-    args: [
-      toPackedUserOperation({
-        ...userOperation,
-        paymaster: config.paymaster,
-        paymasterVerificationGasLimit: PAYMASTER_VERIFICATION_GAS,
-        paymasterPostOpGasLimit: PAYMASTER_POSTOP_GAS,
-        paymasterData: prefix,
-      }),
-    ],
-  });
   // `signMessage` applies the EIP-191 prefix, matching the paymaster's
   // `toEthSignedMessageHash`.
   const signature = await signer.signMessage({ message: { raw: hash } });

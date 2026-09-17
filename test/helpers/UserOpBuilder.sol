@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import {PackedUserOperation} from "account-abstraction/interfaces/PackedUserOperation.sol";
 import {Constants} from "../../contracts/libraries/Constants.sol";
+import {MonarchPaymaster} from "../../contracts/MonarchPaymaster.sol";
 
 /// @title UserOpBuilder
 /// @notice Test-only construction of `PackedUserOperation` and Monarch's
@@ -18,7 +19,14 @@ library UserOpBuilder {
     uint128 internal constant DEFAULT_VERIFICATION_GAS = 300_000;
     uint128 internal constant DEFAULT_CALL_GAS = 200_000;
     uint128 internal constant DEFAULT_PM_VERIFICATION_GAS = 150_000;
-    uint128 internal constant DEFAULT_PM_POSTOP_GAS = 80_000;
+    /// @dev 40,000, not the 80,000 this used to be. Above that the EntryPoint
+    ///      charges the paymaster a penalty for the unused remainder, which
+    ///      inflated every local calibration of `POSTOP_GAS_OVERHEAD` by about
+    ///      6,850 gas. Monarch now prices that penalty rather than absorbing it,
+    ///      but a default that does not attract one keeps the rest of the suite
+    ///      measuring the thing it means to. This is also the value the
+    ///      reference sponsor route sends.
+    uint128 internal constant DEFAULT_PM_POSTOP_GAS = 40_000;
     uint256 internal constant DEFAULT_PREVERIFICATION_GAS = 60_000;
 
     function base(address sender, uint256 nonce, bytes memory callData)
@@ -45,10 +53,21 @@ library UserOpBuilder {
 
     /// @notice `paymasterAndData` for Deposit mode: header plus one mode byte.
     function depositData(address paymaster) internal pure returns (bytes memory) {
-        return
-            abi.encodePacked(
-                paymaster, DEFAULT_PM_VERIFICATION_GAS, DEFAULT_PM_POSTOP_GAS, uint8(0)
-            );
+        return depositData(paymaster, DEFAULT_PM_POSTOP_GAS);
+    }
+
+    /// @notice Deposit mode with an explicit `paymasterPostOpGasLimit`.
+    /// @dev That limit is not cosmetic. The EntryPoint charges a penalty of a
+    ///      tenth of whatever part of it goes unused, and bills that penalty to
+    ///      the paymaster *after* `postOp` has already decided what to charge —
+    ///      so the limit chosen here moves the measured overhead. See
+    ///      `test/integration/PostOpOverhead.t.sol`.
+    function depositData(address paymaster, uint128 pmPostOpGas)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return abi.encodePacked(paymaster, DEFAULT_PM_VERIFICATION_GAS, pmPostOpGas, uint8(0));
     }
 
     /// @notice The signed prefix of Sponsored `paymasterAndData` — everything
@@ -63,15 +82,48 @@ library UserOpBuilder {
         pure
         returns (bytes memory)
     {
+        return sponsoredPrefix(paymaster, app, validUntil, validAfter, DEFAULT_PM_POSTOP_GAS);
+    }
+
+    /// @notice Sponsored prefix with an explicit `paymasterPostOpGasLimit`.
+    /// @dev See `depositData` above for why that limit matters.
+    function sponsoredPrefix(
+        address paymaster,
+        address app,
+        uint48 validUntil,
+        uint48 validAfter,
+        uint128 pmPostOpGas
+    ) internal pure returns (bytes memory) {
         return abi.encodePacked(
             paymaster,
             DEFAULT_PM_VERIFICATION_GAS,
-            DEFAULT_PM_POSTOP_GAS,
+            pmPostOpGas,
             uint8(1),
             app,
             validUntil,
             validAfter
         );
+    }
+
+    /// @notice The context Monarch's validation hands to `postOp`.
+    /// @dev It carries `paymasterPostOpGasLimit` as well as the payer, because
+    ///      `postOp` cannot see the operation and needs that limit to reproduce
+    ///      the EntryPoint's unused-gas penalty. Tests that drive `postOp`
+    ///      directly build the context here, so its shape lives in one place.
+    function context(MonarchPaymaster.Mode mode, address user, address app)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return context(mode, user, app, DEFAULT_PM_POSTOP_GAS);
+    }
+
+    function context(MonarchPaymaster.Mode mode, address user, address app, uint256 postOpGasLimit)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return abi.encode(mode, user, app, postOpGasLimit);
     }
 
     /// @notice Append a signature to a prefix built above.

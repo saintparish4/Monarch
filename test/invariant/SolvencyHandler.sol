@@ -7,6 +7,7 @@ import {StdUtils} from "forge-std/StdUtils.sol";
 import {EntryPoint} from "account-abstraction/core/EntryPoint.sol";
 import {IPaymaster} from "account-abstraction/interfaces/IPaymaster.sol";
 
+import {UserOpBuilder} from "../helpers/UserOpBuilder.sol";
 import {MonarchPaymaster} from "../../contracts/MonarchPaymaster.sol";
 
 /// @title SolvencyHandler
@@ -107,7 +108,7 @@ contract SolvencyHandler is CommonBase, StdCheats, StdUtils {
         // cannot do, and would break solvency by construction rather than by
         // finding a bug.
         gasCost = bound(gasCost, 0, available);
-        _charge(abi.encode(MonarchPaymaster.Mode.Deposit, actor, address(0)), gasCost);
+        _charge(UserOpBuilder.context(MonarchPaymaster.Mode.Deposit, actor, address(0)), gasCost);
     }
 
     function chargeApp(uint256 appSeed, uint256 actorSeed, uint256 gasCost) external {
@@ -116,7 +117,7 @@ contract SolvencyHandler is CommonBase, StdCheats, StdUtils {
         (uint96 budget,) = paymaster.apps(which);
         if (budget == 0) return;
         gasCost = bound(gasCost, 0, budget);
-        _charge(abi.encode(MonarchPaymaster.Mode.Sponsored, actor, which), gasCost);
+        _charge(UserOpBuilder.context(MonarchPaymaster.Mode.Sponsored, actor, which), gasCost);
     }
 
     /// @notice Two charges against one pre-read budget, the shape a bundle has.
@@ -134,7 +135,7 @@ contract SolvencyHandler is CommonBase, StdCheats, StdUtils {
         if (budget == 0) return;
         gasCost = bound(gasCost, 0, budget);
 
-        bytes memory context = abi.encode(MonarchPaymaster.Mode.Sponsored, actor, which);
+        bytes memory context = UserOpBuilder.context(MonarchPaymaster.Mode.Sponsored, actor, which);
         _charge(context, gasCost);
         if (paymaster.freeBalance() < gasCost) return;
         _charge(context, gasCost);

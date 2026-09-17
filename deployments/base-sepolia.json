@@ -5,15 +5,62 @@
   "explorerUrl": "https://sepolia.basescan.org",
   "entryPoint": "0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108",
   "simpleAccountFactory": "0x13E9ed32155810FDbd067D4522C492D6f68E5944",
-  "paymaster": "0xd73bc166E95D630a52740f0013Df6F926255bDad",
+  "paymaster": "0xe81CEf1CbDce3a18b093005A2768aF85F78338d2",
   "app": "0x10A487c3a42046d9ed41fDFa4Eb576dD2750a2EB",
   "appSigner": "0x7595DD5e428A583988E8D7D55734211Da4198a76",
-  "deployBlock": 46917737,
+  "deployBlock": 46956665,
   "transactions": {
-    "deploy": "0xdc533ab8320b3367afb1c65d69485f6b19b8549a0598a8852bb407a20784d331",
-    "addStake": "0xd80efbcaa541b942f2dc92ea6ec4b1d5af1772ddfb05538448a5a26398f3ab85",
-    "deposit": "0x05fd88ce8c06f9b43f2879f72f98af5f053874c6192cd69f48dfb8abbeec73ad",
-    "registerApp": "0x9feff157d134320663ddca05aa03a4cedaf2e891b3649a427f1b1c736eab6b5f",
-    "fundApp": "0xa1eadaf057a07c54941a0e61ccea8d58a89ea48b996f8a4083242683a4e9c079"
+    "deploy": "0xb94fe6fcd6b29acfce47b230414333a709a518b42695e80a044f79cd31da8e72",
+    "addStake": "0xf14908f81ed202cf2c0881a6d96ebbb9d006960c9e7c6a9ea892269de7f3751c",
+    "deposit": "0xd5b9e0c2f66d16a99a9a4e31e96a56283121aa50b877d647d4cb5f73fb16f4d2",
+    "registerApp": "0x451bf4cee20c208c97f0621e8ed027e1c0552d5da835bdb294b602eaec8bf913",
+    "fundApp": "0x406241aa4a98c91919349739552b1266df1c4bea05880ae8fdbe81d8359b086b"
+  },
+  "superseded": [
+    {
+      "paymaster": "0xd73bc166E95D630a52740f0013Df6F926255bDad",
+      "deployBlock": 46917737,
+      "retired": "charged a 25,000 gas flat overhead that overbilled every operation by 12,311 gas",
+      "depositRecovered": true,
+      "stakeWei": "10000000000000000",
+      "stakeUnlocked": true,
+      "stakeWithdrawableAt": 1789768496,
+      "recovery": {
+        "withdrawAppBudget": "0x63dc7a898c7fb6cd67447375d8d765de3a1022391701ddb9c6ee357a942f9642",
+        "withdrawTo": "0x1b722bf7c7e3b39aaad65615de7db74b41c5cd04cde7dbb74e236b70c0287a90",
+        "unlockStake": "0x26b8cbea0f340ef79fd7d2d9ebab914ad44d7911475e78cc330c5e111622f3f3"
+      }
+    },
+    {
+      "paymaster": "0xB21BB74eeFFA0B07BCbd1ec2f4AD65f693A58531",
+      "deployBlock": 46955548,
+      "retired": "capped paymasterPostOpGasLimit at 40,000, which bundlers exceed during gas estimation, so no operation could be estimated",
+      "depositRecovered": true,
+      "stakeWei": "10000000000000000",
+      "stakeUnlocked": true,
+      "stakeWithdrawableAt": 1789768502,
+      "recovery": {
+        "withdrawAppBudget": "0x035a440fc903e5c41e2f998db30b049b8658cc31823efbde7a8493f98a8cba30",
+        "withdrawTo": "0x7f2e412e99911aab125a0091d48d4ce18dc71940a9203acfc0de65833e7b37f2",
+        "unlockStake": "0x15603934ae0c0e247f89e8fc10b07072f53955553d7f47c8e5c5332f03c3d60b"
+      }
+    },
+    {
+      "paymaster": "0x00F4d09b02227e31516600c228e5Cc4032cF80b5",
+      "deployBlock": 46956653,
+      "retired": "identical to the live paymaster; the deploy script was run twice, so this one was never registered or used",
+      "depositRecovered": true,
+      "stakeWei": "10000000000000000",
+      "stakeUnlocked": true,
+      "stakeWithdrawableAt": 1789768510,
+      "recovery": {
+        "withdrawTo": "0xe6da50129308f77d5f853d74e40ec40759d0a9735825b0fe654751bffb02aa0f",
+        "unlockStake": "0x1f4388116ff94c42516f1766037afe5ce863f6ae00ab7b8f2a30c022ef91fa01"
+      }
+    }
+  ],
+  "stakeStillToWithdraw": {
+    "totalWei": "30000000000000000",
+    "note": "withdrawStake(address) on each superseded paymaster once its stakeWithdrawableAt has passed"
   }
 }
