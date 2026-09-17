@@ -20,7 +20,7 @@ nothing is deployed to mainnet.
 |                         |                                                                                                                                                                                           |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Builds                  | ✅ `forge build`, zero warnings                                                                                                                                                           |
-| Tests                   | ✅ 96 passing — 84 unit, 11 integration, 6 invariants                                                                                                                                     |
+| Tests                   | ✅ 115 passing — 90 unit, 24 integration, and one invariant suite of 6 invariants that `forge` counts as a single test                                                                    |
 | Coverage                | ✅ 99.2% lines, 95.5% branches, 100% functions                                                                                                                                            |
 | Static analysis         | ✅ `slither` clean; `solhint` clean at cyclomatic complexity 7                                                                                                                            |
 | Gas                     | ✅ published below and in [`.gas-snapshot`](.gas-snapshot)                                                                                                                                |
@@ -163,9 +163,11 @@ constant. That trade is worth making: on Base Sepolia a repeat sponsored
 operation used to be billed 12,311 gas more than the EntryPoint actually took,
 and is now billed 2,136 more.
 
-Runtime size 7,894 bytes. Per-test figures in [`.gas-snapshot`](.gas-snapshot),
-which CI diffs rather than regenerates — a job that rebuilds its own baseline
-lets a regression stay green. Invariant runs are excluded from the snapshot
+Runtime size 7,894 bytes. Per-test figures are in
+[`.gas-snapshot`](.gas-snapshot), which is committed and checked with
+`npm run snapshot:check` — a diff, never a regenerate, because a baseline that
+rebuilds itself lets a regression stay green. That check is run by hand today;
+wiring it into CI is still to do. Invariant runs are excluded from the snapshot
 because their gas is not deterministic across seeds.
 
 ## Testing
@@ -222,7 +224,7 @@ The full gate set, each of which fails rather than prints:
 ```bash
 forge fmt --check                       # formatting
 forge build --sizes                     # zero warnings, forge lint included
-FOUNDRY_PROFILE=ci forge test           # 96 tests, invariants at depth 64
+FOUNDRY_PROFILE=ci forge test           # 115 tests, invariants at depth 64
 npm run snapshot:check                  # gas has not regressed
 npm install && npm run lint             # solhint, cyclomatic complexity 7
 npm run analyze                         # slither, zero high and zero medium
