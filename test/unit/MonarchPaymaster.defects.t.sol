@@ -7,6 +7,7 @@ import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
 import {SIG_VALIDATION_SUCCESS} from "account-abstraction/core/Helpers.sol";
 import {VmSafe} from "forge-std/Vm.sol";
 
+import {UserOpBuilder} from "../helpers/UserOpBuilder.sol";
 import {MonarchPaymaster} from "../../contracts/MonarchPaymaster.sol";
 import {Constants} from "../../contracts/libraries/Constants.sol";
 import {Fixture} from "../helpers/Fixture.sol";
@@ -28,7 +29,7 @@ contract MonarchPaymasterDefectsTest is Fixture {
         vm.prank(alice);
         paymaster.depositFor{value: 5 ether}(alice);
 
-        bytes memory context = abi.encode(MonarchPaymaster.Mode.Sponsored, alice, app);
+        bytes memory context = UserOpBuilder.context(MonarchPaymaster.Mode.Sponsored, alice, app);
 
         (uint96 budgetStart,) = paymaster.apps(app);
         vm.prank(address(entryPoint));

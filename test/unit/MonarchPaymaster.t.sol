@@ -7,6 +7,7 @@ import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
 import {SIG_VALIDATION_SUCCESS} from "account-abstraction/core/Helpers.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
+import {UserOpBuilder} from "../helpers/UserOpBuilder.sol";
 import {MonarchPaymaster} from "../../contracts/MonarchPaymaster.sol";
 import {Constants} from "../../contracts/libraries/Constants.sol";
 import {Validation} from "../../contracts/libraries/Validation.sol";
@@ -309,6 +310,37 @@ contract MonarchPaymasterTest is Fixture {
         _validate(op, 1 ether);
     }
 
+    /// @notice The sponsored fields fill exactly one word, which is what lets
+    ///         validation read them with a single calldata slice.
+    /// @dev `_validateSponsored` reads `[APP_OFFSET:SIGNATURE_OFFSET]` as one
+    ///      `bytes32` and shifts the three fields out of it, which is 1,025 gas
+    ///      cheaper than three sub-word slices and their bounds checks. That is
+    ///      only correct while the three widths still add to 32: widen the time
+    ///      fields and the app address silently loses its low bytes. This is the
+    ///      assertion that stops that being a runtime surprise.
+    function test_theSponsoredFieldsFillExactlyOneWord() public pure {
+        assertEq(
+            Constants.APP_WIDTH + 2 * Constants.TIMESTAMP_WIDTH,
+            32,
+            "app + validUntil + validAfter is one word"
+        );
+        assertEq(
+            Constants.SIGNATURE_OFFSET - Constants.APP_OFFSET,
+            32,
+            "and the slice validation takes is exactly that word"
+        );
+        assertEq(
+            Constants.VALID_UNTIL_OFFSET - Constants.APP_OFFSET,
+            Constants.APP_WIDTH,
+            "validUntil begins where the app address ends"
+        );
+        assertEq(
+            Constants.VALID_AFTER_OFFSET - Constants.VALID_UNTIL_OFFSET,
+            Constants.TIMESTAMP_WIDTH,
+            "and validAfter where validUntil ends"
+        );
+    }
+
     function test_unknownMode_reverts() public {
         PackedUserOperation memory op = UserOpBuilder.base(alice, 0, "");
         op.paymasterAndData = abi.encodePacked(
@@ -321,6 +353,98 @@ contract MonarchPaymasterTest is Fixture {
         _validate(op, 1 ether);
     }
 
+    /// @notice A large postOp gas limit is priced, not refused.
+    /// @dev Refusing it would be the obvious move and it is the wrong one:
+    ///      bundlers simulate with a limit far above anything real — Pimlico
+    ///      uses 2,000,000 — so a paymaster that reverts on a large limit
+    ///      cannot be gas-estimated, and therefore cannot be used at all. That
+    ///      is not a hypothetical; it is how the first version of this check
+    ///      was found to be wrong, on Base Sepolia, by the demo failing.
+    function test_largePostOpGasLimit_isAcceptedRatherThanRefused() public {
+        PackedUserOperation memory op = UserOpBuilder.base(alice, 0, "");
+        op.paymasterAndData = UserOpBuilder.depositData(address(paymaster), uint128(2_000_000));
+        paymaster.depositFor{value: 1 ether}(alice);
+
+        (bytes memory context, uint256 validationData) = _validate(op, 1 ether);
+        assertEq(validationData & 1, 0, "the bundler's estimation limit is accepted");
+        assertGt(context.length, 0, "and produces a live context");
+    }
+
+    /// @notice What it costs instead: the payer is billed the EntryPoint's
+    ///         unused-gas penalty on the limit they asked for.
+    /// @dev This is what makes refusing unnecessary. The penalty is a tenth of
+    ///      the unused remainder, so an operation that reserves 500,000 of
+    ///      postOp gas and uses 11,500 of it pays about 49,000 gas for the
+    ///      privilege — out of its own budget, not the owner's.
+    function test_anOversizedGasLimitIsChargedToThePayerNotTheOwner() public {
+        paymaster.depositFor{value: 1 ether}(alice);
+        uint256 feePerGas = 1 gwei;
+
+        _postOp(
+            UserOpBuilder.context(MonarchPaymaster.Mode.Deposit, alice, address(0), 500_000),
+            0,
+            feePerGas
+        );
+        uint256 charged = 1 ether - paymaster.userDeposits(alice);
+
+        // (500,000 - 10,000) / 10 = 49,000, on top of the flat overhead.
+        uint256 expected = (paymaster.POSTOP_GAS_OVERHEAD() + 49_000) * feePerGas;
+        assertEq(charged, expected, "the penalty is charged to the payer who caused it");
+    }
+
+    /// @notice And a limit small enough to attract no penalty is charged none.
+    function test_aGasLimitBelowTheThresholdCarriesNoPenalty() public {
+        paymaster.depositFor{value: 1 ether}(alice);
+        uint256 feePerGas = 1 gwei;
+
+        _postOp(
+            UserOpBuilder.context(MonarchPaymaster.Mode.Deposit, alice, address(0), 40_000),
+            0,
+            feePerGas
+        );
+
+        assertEq(
+            1 ether - paymaster.userDeposits(alice),
+            paymaster.POSTOP_GAS_OVERHEAD() * feePerGas,
+            "the flat overhead and nothing more"
+        );
+    }
+
+    /// @notice An operation asking for too little postOp gas is refused.
+    /// @dev The dangerous direction, and the one a price cannot fix. A starved
+    ///      `postOp` reverts, the EntryPoint swallows it and settles in
+    ///      `postOpReverted` mode, and the payer is never debited at all — there
+    ///      is no later moment at which to charge anyone. See the bundle-level
+    ///      proof in `GasLimits.t.sol`.
+    function test_insufficientPostOpGasLimit_reverts() public {
+        PackedUserOperation memory op = UserOpBuilder.base(alice, 0, "");
+        op.paymasterAndData = UserOpBuilder.depositData(address(paymaster), uint128(11_000));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                MonarchPaymaster.PostOpGasLimitTooLow.selector,
+                uint256(11_000),
+                paymaster.MIN_POSTOP_GAS_LIMIT()
+            )
+        );
+        _validate(op, 1 ether);
+    }
+
+    /// @notice The floor itself is legal. Off-by-one here refuses honest
+    ///         operations.
+    function test_postOpGasLimitExactlyAtTheFloorIsAccepted() public {
+        _fundApp(app, 5 ether);
+        PackedUserOperation memory op = UserOpBuilder.base(alice, 0, "");
+        bytes memory prefix = UserOpBuilder.sponsoredPrefix(
+            address(paymaster), app, 0, 0, uint128(paymaster.MIN_POSTOP_GAS_LIMIT())
+        );
+        op.paymasterAndData = prefix;
+        op.paymasterAndData =
+            UserOpBuilder.withSignature(prefix, _signSponsorship(op, appSignerKey));
+
+        (, uint256 validationData) = _validate(op, 1 ether);
+        assertEq(validationData & 1, 0, "a limit exactly at the floor is accepted");
+    }
+
     function test_onlyEntryPointMayValidate() public {
         PackedUserOperation memory op = _depositOp(alice);
         vm.prank(alice);
@@ -329,7 +453,8 @@ contract MonarchPaymasterTest is Fixture {
     }
 
     function test_onlyEntryPointMayCallPostOp() public {
-        bytes memory context = abi.encode(MonarchPaymaster.Mode.Deposit, alice, address(0));
+        bytes memory context =
+            UserOpBuilder.context(MonarchPaymaster.Mode.Deposit, alice, address(0));
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(MonarchPaymaster.NotEntryPoint.selector, alice));
         paymaster.postOp(IPaymaster.PostOpMode.opSucceeded, context, 1 ether, 1);
@@ -342,7 +467,7 @@ contract MonarchPaymasterTest is Fixture {
         vm.prank(alice);
         paymaster.depositFor{value: 1 ether}(alice);
 
-        _postOp(abi.encode(MonarchPaymaster.Mode.Sponsored, alice, app), 0.1 ether, 0);
+        _postOp(UserOpBuilder.context(MonarchPaymaster.Mode.Sponsored, alice, app), 0.1 ether, 0);
 
         (uint96 budget,) = paymaster.apps(app);
         assertEq(budget, 5 ether - 0.1 ether, "the app paid");
@@ -351,7 +476,7 @@ contract MonarchPaymasterTest is Fixture {
 
     function test_postOp_chargesEvenWhenTheOpReverted() public {
         _fundApp(app, 5 ether);
-        bytes memory context = abi.encode(MonarchPaymaster.Mode.Sponsored, alice, app);
+        bytes memory context = UserOpBuilder.context(MonarchPaymaster.Mode.Sponsored, alice, app);
 
         // `opReverted` describes whether the operation succeeded. It must not
         // select a payment scheme — reading it as one is the bug this replaces.
@@ -366,7 +491,9 @@ contract MonarchPaymasterTest is Fixture {
         vm.prank(alice);
         paymaster.depositFor{value: 0.5 ether}(alice);
 
-        _postOp(abi.encode(MonarchPaymaster.Mode.Deposit, alice, address(0)), 10 ether, 0);
+        _postOp(
+            UserOpBuilder.context(MonarchPaymaster.Mode.Deposit, alice, address(0)), 10 ether, 0
+        );
 
         assertEq(paymaster.userDeposits(alice), 0, "drained, not reverted");
         assertEq(paymaster.totalUserDeposits(), 0, "running total drained with it");
@@ -374,7 +501,7 @@ contract MonarchPaymasterTest is Fixture {
 
     function test_postOp_chargesTheOverheadOnTopOfGas() public {
         _fundApp(app, 5 ether);
-        _postOp(abi.encode(MonarchPaymaster.Mode.Sponsored, alice, app), 0.1 ether, 2);
+        _postOp(UserOpBuilder.context(MonarchPaymaster.Mode.Sponsored, alice, app), 0.1 ether, 2);
 
         (uint96 budget,) = paymaster.apps(app);
         uint256 expected = 5 ether - (0.1 ether + paymaster.POSTOP_GAS_OVERHEAD() * 2);

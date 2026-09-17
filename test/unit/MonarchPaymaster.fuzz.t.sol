@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import {PackedUserOperation} from "account-abstraction/interfaces/PackedUserOperation.sol";
 import {SIG_VALIDATION_SUCCESS} from "account-abstraction/core/Helpers.sol";
 
+import {UserOpBuilder} from "../helpers/UserOpBuilder.sol";
 import {MonarchPaymaster} from "../../contracts/MonarchPaymaster.sol";
 import {Constants} from "../../contracts/libraries/Constants.sol";
 import {Fixture} from "../helpers/Fixture.sol";
@@ -97,7 +98,9 @@ contract MonarchPaymasterFuzzTest is Fixture {
         vm.prank(alice);
         paymaster.depositFor{value: balance}(alice);
 
-        _postOp(abi.encode(MonarchPaymaster.Mode.Deposit, alice, address(0)), cost, feePerGas);
+        _postOp(
+            UserOpBuilder.context(MonarchPaymaster.Mode.Deposit, alice, address(0)), cost, feePerGas
+        );
 
         uint256 charge = cost + paymaster.POSTOP_GAS_OVERHEAD() * uint256(feePerGas);
         uint256 expected = charge > balance ? 0 : balance - charge;
