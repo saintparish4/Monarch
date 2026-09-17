@@ -2,6 +2,8 @@
 
 **An ERC-4337 paymaster that lets a consumer app pay its users' gas.**
 
+**Live on Base Sepolia:** [`0xd73bc166E95D630a52740f0013Df6F926255bDad`](https://base-sepolia.blockscout.com/address/0xd73bc166E95D630a52740f0013Df6F926255bDad), source verified, staked, and sponsoring operations for wallets that hold zero ETH.
+
 A new user of a consumer dApp has no ETH. Asking them to bridge some before they
 can post, mint, or play is where most of them leave. Monarch is the contract an
 app deploys so it can pick up that bill — for a specific user, for a specific
@@ -22,8 +24,8 @@ nothing is deployed to mainnet.
 | Coverage | ✅ 99.2% lines, 95.5% branches, 100% functions |
 | Static analysis | ✅ `slither` clean; `solhint` clean at cyclomatic complexity 7 |
 | Gas | ✅ published below and in [`.gas-snapshot`](.gas-snapshot) |
-| Deployed (Base Sepolia) | 🚧 not yet |
-| Demo | 🚧 not yet |
+| Deployed (Base Sepolia) | ✅ [`0xd73bc166…bDad`](https://base-sepolia.blockscout.com/address/0xd73bc166E95D630a52740f0013Df6F926255bDad), source verified on Sourcify and Blockscout; see [Deployment](#deployment) |
+| Demo | ✅ a zero-ETH wallet sends sponsored operations through a public bundler; see [Demo](#demo) |
 | Audit | ❌ none, and none planned |
 
 ## How it works
@@ -76,6 +78,61 @@ makes the whole bundle unmineable and gets the paymaster throttled. Malformed
 from it breaks solvency, because the EntryPoint finalises `actualGasCost` after
 `postOp` returns. The honest measurement is the deficit a bundle leaves behind
 with no owner buffer.
+
+**The contract this replaced is torn down in [`docs/teardown-basepaymaster.md`](docs/teardown-basepaymaster.md).**
+It didn't compile, couldn't be called by any current EntryPoint, and read the
+clock during validation. Each design rule above traces back to one of those
+lines.
+
+## Deployment
+
+| | Base Sepolia (84532) |
+|---|---|
+| MonarchPaymaster | [`0xd73bc166E95D630a52740f0013Df6F926255bDad`](https://base-sepolia.blockscout.com/address/0xd73bc166E95D630a52740f0013Df6F926255bDad) |
+| EntryPoint | `0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108` (v0.8) |
+| Stake | 0.01 ETH, one-day unstake delay |
+| Source | exact match on [Sourcify](https://repo.sourcify.dev/84532/0xd73bc166E95D630a52740f0013Df6F926255bDad); verified on [Blockscout](https://base-sepolia.blockscout.com/address/0xd73bc166E95D630a52740f0013Df6F926255bDad?tab=contract) |
+
+Every address and transaction hash is in
+[`deployments/base-sepolia.json`](deployments/base-sepolia.json). Deploying,
+staking and funding the owner buffer is one broadcast, so a deployment can't
+stop at an unstaked contract that looks finished but sponsors nothing:
+
+```bash
+forge script script/Deploy.s.sol --rpc-url base_sepolia --broadcast
+PAYMASTER=0x… APP_SIGNER=0x… \
+  forge script script/RegisterApp.s.sol --rpc-url base_sepolia --broadcast
+```
+
+The public bundler accepted a 0.01 ETH stake. ERC-7562 leaves the minimum to each
+chain, so a mainnet deployment needs to check what its bundlers require.
+
+## Demo
+
+[`demo/`](demo) is one Next.js page. It generates an owner key in the browser, so
+the wallet has never held ETH. It then derives a `SimpleAccount` and sends a call
+through a public bundler. The app's backend route,
+[`demo/app/api/sponsor/route.ts`](demo/app/api/sponsor/route.ts), decides whether
+to sponsor and signs the authorisation. The paymaster charges the app's budget.
+
+First live run, 2026-09-17:
+
+| Operation | Transaction | Gas used | Charged to the app |
+|---|---|---|---|
+| First (also deploys the account) | [`0xc30a804a…17cd`](https://base-sepolia.blockscout.com/tx/0xc30a804ac6181b2b16c7ed502f7bb692fed744fe91d265fca1309af87a2017cd) | 274,445 | 0.0000017492 ETH |
+| Second | [`0x98a46358…1a72`](https://base-sepolia.blockscout.com/tx/0x98a463588fb8dce8b8c0c034e40c65f547febbba461c41fccdcba82d43ad1a72) | 132,635 | 0.0000008842 ETH |
+
+The owner key and the smart account both held 0 ETH before and after.
+
+```bash
+cd demo && npm install && npm run dev
+```
+
+The sponsor route signs with `APP_SIGNER_PRIVATE_KEY` from the repository's
+`.env`, and only the registered signer's key works. To run it yourself, deploy
+and register your own app with the scripts above. Then point
+`deployments/base-sepolia.json` at your addresses. The endpoint is
+unauthenticated, which is fine for a testnet budget and nothing else.
 
 ## Gas
 
@@ -163,6 +220,10 @@ test/unit/              branch coverage, fuzz, access matrix, defect regressions
 test/integration/       handleOps against the real EntryPoint
 test/invariant/         solvency and value conservation under stateful fuzzing
 tools/slither-erc7562/  the ERC-7562 detector, with its own tests and corpus
+script/                 deploy + stake, and register + fund an app
+deployments/            deployed addresses and transaction hashes, per network
+demo/                   a zero-ETH wallet sending a sponsored operation
+docs/                   the teardown of the contract this replaced
 ```
 
 ## License

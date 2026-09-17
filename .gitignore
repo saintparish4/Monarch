@@ -23,6 +23,7 @@
 # Node
 node_modules
 .next
+*.tsbuildinfo
 /dist
 
 # Python build artefacts from tools/
