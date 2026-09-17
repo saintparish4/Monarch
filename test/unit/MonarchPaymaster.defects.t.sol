@@ -20,9 +20,9 @@ import {UserOpBuilder} from "../helpers/UserOpBuilder.sol";
 ///      a test enforces, so those two have no test here on purpose. A ninth was
 ///      an unused counter, and the field no longer exists.
 contract MonarchPaymasterDefectsTest is Fixture {
-    /// @notice Defect 1: `postOp` read `PostOpMode` as a sponsorship mode, so an
-    ///         op that succeeded was billed to a different scheme than one that
-    ///         reverted.
+    /// @notice Defect 1: `postOp` read `PostOpMode` as a sponsorship mode, so
+    ///         whether an op succeeded or reverted decided how it was settled —
+    ///         in practice, whether `postOp` reverted with "Mode mismatch".
     function test_defect1_postOpModeDoesNotSelectPayer() public {
         _fundApp(app, 5 ether);
         vm.prank(alice);

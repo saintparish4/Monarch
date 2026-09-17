@@ -1,0 +1,19 @@
+{
+  "chainId": 84532,
+  "rpcUrl": "https://sepolia.base.org",
+  "bundlerUrl": "https://public.pimlico.io/v2/84532/rpc",
+  "explorerUrl": "https://sepolia.basescan.org",
+  "entryPoint": "0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108",
+  "simpleAccountFactory": "0x13E9ed32155810FDbd067D4522C492D6f68E5944",
+  "paymaster": "0xd73bc166E95D630a52740f0013Df6F926255bDad",
+  "app": "0x10A487c3a42046d9ed41fDFa4Eb576dD2750a2EB",
+  "appSigner": "0x7595DD5e428A583988E8D7D55734211Da4198a76",
+  "deployBlock": 46917737,
+  "transactions": {
+    "deploy": "0xdc533ab8320b3367afb1c65d69485f6b19b8549a0598a8852bb407a20784d331",
+    "addStake": "0xd80efbcaa541b942f2dc92ea6ec4b1d5af1772ddfb05538448a5a26398f3ab85",
+    "deposit": "0x05fd88ce8c06f9b43f2879f72f98af5f053874c6192cd69f48dfb8abbeec73ad",
+    "registerApp": "0x9feff157d134320663ddca05aa03a4cedaf2e891b3649a427f1b1c736eab6b5f",
+    "fundApp": "0xa1eadaf057a07c54941a0e61ccea8d58a89ea48b996f8a4083242683a4e9c079"
+  }
+}
