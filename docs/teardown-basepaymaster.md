@@ -54,32 +54,32 @@ being fixed.
 
 ## What was torn down
 
-| File at `e787664` | Lines | In the rewrite |
-|---|---|---|
-| `contracts/libraries/BasePayments.sol` | 603 | Deleted |
-| `contracts/gasless/interfaces/IPaymaster.sol` | 185 | Deleted — replaced by the canonical interface |
-| `contracts/gasless/interfaces/IUserOperation.sol` | 110 | Deleted — replaced by the canonical struct |
-| `contracts/libraries/Security.sol` | 308 | Deleted |
-| `contracts/libraries/Math.sol` | 221 | Deleted |
-| `contracts/interfaces/IModule.sol` | 84 | Deleted |
-| `contracts/libraries/Constants.sol` | 108 | Rewritten |
-| `contracts/libraries/Validation.sol` | 275 | Rewritten |
+| File at `e787664`                                 | Lines | In the rewrite                                |
+| ------------------------------------------------- | ----- | --------------------------------------------- |
+| `contracts/libraries/BasePayments.sol`            | 603   | Deleted                                       |
+| `contracts/gasless/interfaces/IPaymaster.sol`     | 185   | Deleted — replaced by the canonical interface |
+| `contracts/gasless/interfaces/IUserOperation.sol` | 110   | Deleted — replaced by the canonical struct    |
+| `contracts/libraries/Security.sol`                | 308   | Deleted                                       |
+| `contracts/libraries/Math.sol`                    | 221   | Deleted                                       |
+| `contracts/interfaces/IModule.sol`                | 84    | Deleted                                       |
+| `contracts/libraries/Constants.sol`               | 108   | Rewritten                                     |
+| `contracts/libraries/Validation.sol`              | 275   | Rewritten                                     |
 
 `bf2de66` deleted thirteen Solidity files in total.
 
 ## The nine defects
 
-| # | Defect | Where | Locked out by |
-|---|---|---|---|
-| 1 | `postOp` treats the EntryPoint's outcome code as a payment mode | [`BasePayments.sol#L161-L179`][d1] | `test_defect1_postOpModeDoesNotSelectPayer` |
-| 2 | `postOp` has three arguments; v0.7+ passes four | [`IPaymaster.sol#L86-L90`][d2] | The compiler |
-| 3 | Validation returns `(bytes, uint256, uint256)` instead of `(bytes, uint256)` | [`IPaymaster.sol#L74-L78`][d3] | The compiler |
-| 4 | Funds never reach the EntryPoint | [`BasePayments.sol#L353-L364`][d4] | `test_defect4_fundsReachTheEntryPoint` |
-| 5 | Withdrawal debits the named user and pays the caller | [`BasePayments.sol#L280-L290`][d5] | `test_defect5_withdrawDebitsTheCallerOnly` |
-| 6 | Admin withdrawal draws on the balance backing user deposits | [`BasePayments.sol#L370-L376`][d6] | `test_defect6_withdrawToRespectsSolvency` |
-| 7 | Mode byte read at offset 20, the v0.6 position | [`BasePayments.sol#L522-L531`][d7] | `test_defect7_modeByteIsReadAtOffset52NotOffset20` |
-| 8 | `block.timestamp` read during validation | [`BasePayments.sol#L146-L150`][d8] | `test_defect8_*` and the [Slither detector](../tools/slither-erc7562) |
-| 9 | `totalUsersSponsored` declared, never written | [`BasePayments.sol#L51`][d9] | The field no longer exists |
+| #   | Defect                                                                       | Where                              | Locked out by                                                         |
+| --- | ---------------------------------------------------------------------------- | ---------------------------------- | --------------------------------------------------------------------- |
+| 1   | `postOp` treats the EntryPoint's outcome code as a payment mode              | [`BasePayments.sol#L161-L179`][d1] | `test_defect1_postOpModeDoesNotSelectPayer`                           |
+| 2   | `postOp` has three arguments; v0.7+ passes four                              | [`IPaymaster.sol#L86-L90`][d2]     | The compiler                                                          |
+| 3   | Validation returns `(bytes, uint256, uint256)` instead of `(bytes, uint256)` | [`IPaymaster.sol#L74-L78`][d3]     | The compiler                                                          |
+| 4   | Funds never reach the EntryPoint                                             | [`BasePayments.sol#L353-L364`][d4] | `test_defect4_fundsReachTheEntryPoint`                                |
+| 5   | Withdrawal debits the named user and pays the caller                         | [`BasePayments.sol#L280-L290`][d5] | `test_defect5_withdrawDebitsTheCallerOnly`                            |
+| 6   | Admin withdrawal draws on the balance backing user deposits                  | [`BasePayments.sol#L370-L376`][d6] | `test_defect6_withdrawToRespectsSolvency`                             |
+| 7   | Mode byte read at offset 20, the v0.6 position                               | [`BasePayments.sol#L522-L531`][d7] | `test_defect7_modeByteIsReadAtOffset52NotOffset20`                    |
+| 8   | `block.timestamp` read during validation                                     | [`BasePayments.sol#L146-L150`][d8] | `test_defect8_*` and the [Slither detector](../tools/slither-erc7562) |
+| 9   | `totalUsersSponsored` declared, never written                                | [`BasePayments.sol#L51`][d9]       | The field no longer exists                                            |
 
 ### It restated an interface it did not own (2, 3)
 
@@ -88,15 +88,17 @@ The old code imported its `IPaymaster` from a file in this repository, not from
 
 ```solidity
 function validatePaymasterUserOp(
-    IUserOperation.UserOperation calldata userOp,
-    bytes32 userOpHash,
-    uint256 maxCost
-) external returns (bytes memory context, uint256 validAfter, uint256 validUntil);
+  IUserOperation.UserOperation calldata userOp,
+  bytes32 userOpHash,
+  uint256 maxCost
+)
+  external
+  returns (bytes memory context, uint256 validAfter, uint256 validUntil);
 
 function postOp(
-    PaymasterMode mode,
-    bytes calldata context,
-    uint256 actualGasCost
+  PaymasterMode mode,
+  bytes calldata context,
+  uint256 actualGasCost
 ) external;
 ```
 
@@ -132,7 +134,7 @@ scheme than a reverted one". Reading it again for this write-up, that is not
 what it does. The `require` compares the outcome code against the payment mode
 stored in the context, and the two only coincide by numeric accident: the
 `require` passes for a `FREE` operation that succeeded (0 = 0) and a
-`SUBSCRIPTION` operation that reverted (1 = 1), and for nothing else. A subscription operation that *succeeds*
+`SUBSCRIPTION` operation that reverted (1 = 1), and for nothing else. A subscription operation that _succeeds_
 reverts with "Mode mismatch". A `DEPOSIT_BASED` operation is mode 3, which no
 outcome code ever equals, so every deposit operation's `postOp` reverts and no
 deposit is ever debited.
@@ -162,18 +164,23 @@ byte 52.
 
 ### The money never reached the EntryPoint (4)
 
-A paymaster pays for operations out of its deposit *on the EntryPoint*. This one
+A paymaster pays for operations out of its deposit _on the EntryPoint_. This one
 kept every wei on itself and said so in the comments:
 
 ```solidity
-function getPaymasterDeposit() external view override returns (uint256 balance) {
-    // In production, this would call entryPoint.balanceOf(address(this))
-    return address(this).balance;
+function getPaymasterDeposit()
+  external
+  view
+  override
+  returns (uint256 balance)
+{
+  // In production, this would call entryPoint.balanceOf(address(this))
+  return address(this).balance;
 }
 
 function addPaymasterDeposit() external payable override onlyAdmin {
-    // In production, this would call entryPoint.depositTo{value: msg.value}(address(this))
-    emit PaymasterDepositAdded(msg.value);
+  // In production, this would call entryPoint.depositTo{value: msg.value}(address(this))
+  emit PaymasterDepositAdded(msg.value);
 }
 ```
 
@@ -257,7 +264,7 @@ internal library function such as `Constants.isInCurrentMonth(...)` under librar
 calls instead, so the walk never enters it. That is a false negative in my own
 tool, found by writing this, and it is the next thing to fix there.
 
-The old validation also *reverted* when it declined to sponsor:
+The old validation also _reverted_ when it declined to sponsor:
 `revert PaymasterValidationFailed("Insufficient sponsorship")`. A revert during
 validation makes the whole bundle unmineable and gets the paymaster throttled.
 The rewrite's validation is `view`, returns its time window for the EntryPoint to
