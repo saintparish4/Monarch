@@ -2,7 +2,7 @@
 
 **An ERC-4337 paymaster that lets a consumer app pay its users' gas.**
 
-**Live on Base Sepolia:** [`0xd73bc166E95D630a52740f0013Df6F926255bDad`](https://base-sepolia.blockscout.com/address/0xd73bc166E95D630a52740f0013Df6F926255bDad), source verified, staked, and sponsoring operations for wallets that hold zero ETH.
+**Live on Base Sepolia:** [`0xe81CEf1CbDce3a18b093005A2768aF85F78338d2`](https://base-sepolia.blockscout.com/address/0xe81CEf1CbDce3a18b093005A2768aF85F78338d2), source verified, staked, and sponsoring operations for wallets that hold zero ETH.
 
 A new user of a consumer dApp has no ETH. Asking them to bridge some before they
 can post, mint, or play is where most of them leave. Monarch is the contract an
@@ -24,7 +24,7 @@ nothing is deployed to mainnet.
 | Coverage                | ✅ 99.2% lines, 95.5% branches, 100% functions                                                                                                                                            |
 | Static analysis         | ✅ `slither` clean; `solhint` clean at cyclomatic complexity 7                                                                                                                            |
 | Gas                     | ✅ published below and in [`.gas-snapshot`](.gas-snapshot)                                                                                                                                |
-| Deployed (Base Sepolia) | ✅ [`0xd73bc166…bDad`](https://base-sepolia.blockscout.com/address/0xd73bc166E95D630a52740f0013Df6F926255bDad), source verified on Sourcify and Blockscout; see [Deployment](#deployment) |
+| Deployed (Base Sepolia) | ✅ [`0xe81CEf1C…38d2`](https://base-sepolia.blockscout.com/address/0xe81CEf1CbDce3a18b093005A2768aF85F78338d2), source verified on Sourcify and Blockscout; see [Deployment](#deployment) |
 | Demo                    | ✅ a zero-ETH wallet sends sponsored operations through a public bundler; see [Demo](#demo)                                                                                               |
 | Audit                   | ❌ none, and none planned                                                                                                                                                                 |
 
@@ -73,11 +73,24 @@ storage. Bundlers reject operations from an unstaked paymaster that does this.
 makes the whole bundle unmineable and gets the paymaster throttled. Malformed
 _structure_ still reverts — a bundler should have dropped that operation outright.
 
-**`POSTOP_GAS_OVERHEAD` is measured, not guessed.** Do not read it off the
-`postOp` frame in a trace; that frame costs 11,524 gas, and setting the constant
-from it breaks solvency, because the EntryPoint finalises `actualGasCost` after
-`postOp` returns. The honest measurement is the deficit a bundle leaves behind
-with no owner buffer.
+**`POSTOP_GAS_OVERHEAD` is measured, and the part that varies isn't a constant
+at all.** Do not read it off the `postOp` frame in a trace; that frame costs
+about 11,500 gas, and setting the constant from it breaks solvency, because the
+EntryPoint finalises `actualGasCost` after `postOp` returns. The honest
+measurement is the deficit a bundle leaves behind with no owner buffer.
+
+That deficit has two parts. One is a fixed base cost, which the constant covers.
+The other is a penalty of a tenth of whatever part of `paymasterPostOpGasLimit`
+goes unused — unbounded, and chosen by the caller — so `postOp` reproduces the
+EntryPoint's formula and bills it to the payer who asked for the limit. Pricing
+it beats refusing it: bundlers estimate gas by simulating with limits far above
+anything real, so a paymaster that reverts on a large limit cannot be estimated
+and therefore cannot be used.
+
+The one limit refused rather than priced is one too small for `postOp` to
+finish. A starved `postOp` is swallowed by the EntryPoint, which settles without
+calling it again, so the payer is never debited while the deposit is drained in
+full — and there is no later moment at which to charge anyone.
 
 **The contract this replaced is torn down in [`docs/teardown-basepaymaster.md`](docs/teardown-basepaymaster.md).**
 It didn't compile, couldn't be called by any current EntryPoint, and read the
@@ -88,10 +101,10 @@ lines.
 
 |                  | Base Sepolia (84532)                                                                                                                                                                                                                 |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| MonarchPaymaster | [`0xd73bc166E95D630a52740f0013Df6F926255bDad`](https://base-sepolia.blockscout.com/address/0xd73bc166E95D630a52740f0013Df6F926255bDad)                                                                                               |
+| MonarchPaymaster | [`0xe81CEf1CbDce3a18b093005A2768aF85F78338d2`](https://base-sepolia.blockscout.com/address/0xe81CEf1CbDce3a18b093005A2768aF85F78338d2)                                                                                               |
 | EntryPoint       | `0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108` (v0.8)                                                                                                                                                                                  |
 | Stake            | 0.01 ETH, one-day unstake delay                                                                                                                                                                                                      |
-| Source           | exact match on [Sourcify](https://repo.sourcify.dev/84532/0xd73bc166E95D630a52740f0013Df6F926255bDad); verified on [Blockscout](https://base-sepolia.blockscout.com/address/0xd73bc166E95D630a52740f0013Df6F926255bDad?tab=contract) |
+| Source           | exact match on [Sourcify](https://repo.sourcify.dev/84532/0xe81CEf1CbDce3a18b093005A2768aF85F78338d2); verified on [Blockscout](https://base-sepolia.blockscout.com/address/0xe81CEf1CbDce3a18b093005A2768aF85F78338d2?tab=contract) |
 
 Every address and transaction hash is in
 [`deployments/base-sepolia.json`](deployments/base-sepolia.json). Deploying,
@@ -141,10 +154,16 @@ traces. This is what Monarch adds to an operation:
 
 | Path      | `validatePaymasterUserOp` | `postOp` |
 | --------- | ------------------------- | -------- |
-| Sponsored | 11,997                    | 11,524   |
-| Deposit   | 3,983                     | 11,022   |
+| Sponsored | 11,237                    | 11,693   |
+| Deposit   | 4,248                     | 11,191   |
 
-Runtime size 7,896 bytes. Per-test figures in [`.gas-snapshot`](.gas-snapshot),
+`postOp` costs a little more than it used to because it now prices the
+EntryPoint's unused-gas penalty rather than folding a guess at it into a
+constant. That trade is worth making: on Base Sepolia a repeat sponsored
+operation used to be billed 12,311 gas more than the EntryPoint actually took,
+and is now billed 2,136 more.
+
+Runtime size 7,894 bytes. Per-test figures in [`.gas-snapshot`](.gas-snapshot),
 which CI diffs rather than regenerates — a job that rebuilds its own baseline
 lets a regression stay green. Invariant runs are excluded from the snapshot
 because their gas is not deterministic across seeds.
