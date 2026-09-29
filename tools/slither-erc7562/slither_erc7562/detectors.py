@@ -7,17 +7,36 @@ from .rules import BANNED_CALLS, BANNED_VARIABLES, VALIDATION_ENTRY_POINTS
 
 
 def _callee(operation):
-    """The Function an internal-call operation targets, or None."""
+    """The Function a call operation targets, or None."""
     target = getattr(operation, "function", None)
     return target if isinstance(target, Function) else None
 
 
+def _self_call_target(operation):
+    """The function a `this.f()` call runs, or None for any other external call.
+
+    Slither resolves the call against the contract being analysed, so a
+    `this.f()` written in a base reaches the override the deployed contract
+    actually runs. The `SelfCallOverride` fixture pins that.
+    """
+    if str(getattr(operation, "destination", "")) != "this":
+        return None
+    return _callee(operation)
+
+
 def reachable_from(entry):
-    """Every function reachable from `entry`, including through modifiers.
+    """Every function reachable from `entry` during the validation phase.
+
+    Followed: internal calls, modifiers, library calls and `this.f()` calls. The
+    bundler's tracer sees every opcode executed under the validation frame,
+    whichever of those routes reached it, so the walk has to follow all four.
 
     Modifiers matter more than they look. A `whenNotPaused` that reads
     `block.timestamp` runs during validation just as surely as the body does,
     and is the easiest place for a banned opcode to hide from a reader.
+
+    Calls to other contracts are not followed: which code sits behind an
+    address is a deployment fact, not a source fact.
     """
     seen = {entry}
     queue = [entry]
@@ -25,6 +44,8 @@ def reachable_from(entry):
         current = queue.pop()
         callees = [_callee(op) for op in current.internal_calls]
         callees += list(getattr(current, "modifiers", []))
+        callees += [_callee(op) for op in current.library_calls]
+        callees += [_self_call_target(op) for _, op in current.high_level_calls]
         for callee in callees:
             if isinstance(callee, Function) and callee not in seen:
                 seen.add(callee)
@@ -105,7 +126,7 @@ The paymaster is deployed, staked and funded, and sponsors nothing."""
         """(function, node, opcode, spelling) for every banned use, deduplicated."""
         findings = []
         seen = set()
-        for function in sorted(reachable_from(entry), key=lambda f: f.name):
+        for function in sorted(reachable_from(entry), key=lambda f: f.canonical_name):
             for node in function.nodes:
                 for variable in node.solidity_variables_read:
                     opcode = BANNED_VARIABLES.get(str(variable))

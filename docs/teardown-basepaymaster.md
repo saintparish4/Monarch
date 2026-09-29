@@ -258,11 +258,13 @@ function getCurrentMonthStart() internal view returns (uint256 monthStart) {
 This defect is the one that became a tool. [`slither-erc7562`](../tools/slither-erc7562)
 walks everything reachable from `validatePaymasterUserOp` and reports banned
 opcodes. Against this code, with only the three compile errors repaired, it
-reports lines 146, 149 and 150 in under a second. **It does not report the
-fourth.** The detector follows `internal_calls`, and Slither files a call into an
-internal library function such as `Constants.isInCurrentMonth(...)` under library
-calls instead, so the walk never enters it. That is a false negative in my own
-tool, found by writing this, and it is the next thing to fix there.
+reports all four reads in under a second: lines 146, 149 and 150, and
+`getCurrentMonthStart` in `Constants.sol`. The first version of the detector
+missed that fourth one. It followed only `internal_calls`, and Slither files a
+call into an internal library function such as `Constants.isInCurrentMonth(...)`
+under library calls instead, so the walk never entered it. That was a false
+negative in my own tool, found by writing this, and the walk now follows library
+calls too.
 
 The old validation also _reverted_ when it declined to sponsor:
 `revert PaymasterValidationFailed("Insufficient sponsorship")`. A revert during

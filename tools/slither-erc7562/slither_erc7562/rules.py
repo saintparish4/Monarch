@@ -13,6 +13,11 @@ tells you after you have deployed.
 
 # Solidity spellings of banned opcodes, mapped to the opcode they compile to.
 # Keys match `str()` of Slither's SolidityVariableComposed.
+#
+# Every key here must be one some source can actually produce: the test suite
+# fails if any key never fires on a fixture. A mapping that claims coverage it
+# cannot deliver is the same "says clean, isn't" failure this plugin exists to
+# catch, only in the plugin itself.
 BANNED_VARIABLES = {
     "block.timestamp": "TIMESTAMP",
     "block.number": "NUMBER",
@@ -22,26 +27,51 @@ BANNED_VARIABLES = {
     "block.gaslimit": "GASLIMIT",
     "block.basefee": "BASEFEE",
     "block.blobbasefee": "BLOBBASEFEE",
-    "block.blockhash": "BLOCKHASH",
-    "block.prevhash": "BLOCKHASH",
     "tx.origin": "ORIGIN",
     "tx.gasprice": "GASPRICE",
-    "self.balance": "SELFBALANCE",
 }
 
-# Banned builtins, matched on Slither's SolidityFunction name.
+# Banned builtins, matched on Slither's SolidityFunction name. Both the Solidity
+# builtins and the Yul ones: Slither parses inline assembly into the same nodes
+# and names each Yul builtin after itself, with every argument typed uint256.
+# Without the Yul half, `assembly { t := timestamp() }` passes clean.
 BANNED_CALLS = {
+    # Solidity
     "blockhash(uint256)": "BLOCKHASH",
+    "blobhash(uint256)": "BLOBHASH",
     "balance(address)": "BALANCE",
     "selfdestruct(address)": "SELFDESTRUCT",
-    "suicide(address)": "SELFDESTRUCT",
-    "blobhash(uint256)": "BLOBHASH",
+    # Yul. `blockhash` and `blobhash` share their Solidity spelling. Slither
+    # rewrites `origin()` to `tx.origin` and `selfbalance()` to
+    # `address(this).balance`, so both arrive through the Solidity keys and have
+    # none of their own. There is no `difficulty()`: solc rejects it for every
+    # EVM version from Paris on, and opcode 0x44 is reached through
+    # `prevrandao()` instead.
+    "timestamp()": "TIMESTAMP",
+    "number()": "NUMBER",
+    "prevrandao()": "PREVRANDAO",
+    "coinbase()": "COINBASE",
+    "gaslimit()": "GASLIMIT",
+    "basefee()": "BASEFEE",
+    "blobbasefee()": "BLOBBASEFEE",
+    "gasprice()": "GASPRICE",
+    "balance(uint256)": "BALANCE",
+    "selfdestruct(uint256)": "SELFDESTRUCT",
 }
 
 # Explicitly permitted, listed so the exclusions are a decision rather than an
-# oversight. CHAINID is allowed and is load-bearing: a sponsorship signature
-# that does not commit to the chain id is replayable across chains.
-PERMITTED = {"block.chainid", "chain.id", "msg.sender", "msg.data", "msg.sig", "msg.value"}
+# oversight. The test suite reads every one of these in a clean fixture and
+# fails if any is reported. CHAINID is allowed and is load-bearing: a
+# sponsorship signature that does not commit to the chain id is replayable
+# across chains.
+PERMITTED = {
+    "block.chainid",
+    "chainid()",
+    "msg.sender",
+    "msg.data",
+    "msg.sig",
+    "msg.value",
+}
 
 # Deliberately NOT banned here, though ERC-7562 restricts them:
 #
