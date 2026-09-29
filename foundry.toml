@@ -22,6 +22,9 @@ optimizer_runs = 200
 via_ir = false
 deny = "warnings"
 gas_reports = ["MonarchPaymaster"]
+# The fork test only means something under the `fork` profile's compiler
+# settings; under these it would compare two different builds and fail.
+no_match_path = "test/fork/*"
 
 # `forge lint` runs inside `forge build`, and `deny = "warnings"` makes it
 # blocking. Scope it to `contracts/`: test code sends ETH to arbitrary addresses
@@ -35,9 +38,40 @@ verbosity = 3
 fuzz = { runs = 1024 }
 invariant = { runs = 512, depth = 64, fail_on_revert = true }
 
-# The tests fork Base Sepolia to exercise real EntryPoint v0.8 bytecode
-# rather than a mock, which would agree with whatever I believe about the
-# interface — and being wrong about that interface is what I am rebuilding.
+# The bytecode check against the deployed EntryPoint. Compiled with the settings
+# eth-infinitism shipped v0.8 with (via-IR, 1,000,000 runs), because that is the
+# only way the EntryPoint compiled from `lib/` can be byte-identical to the one
+# on chain. Scoped to `test/fork` so nothing else is compiled under via-IR.
+[profile.fork]
+test = "test/fork"
+via_ir = true
+optimizer_runs = 1_000_000
+# Overrides the default profile's exclusion of `test/fork`. It can't be
+# emptied: an empty glob excludes every test. `test/unit` isn't compiled under
+# this profile anyway.
+no_match_path = "test/unit/*"
+
+# Gas snapshots. Identical to the default except that the CBOR metadata hash is
+# left out of the bytecode. Tests run isolated, so a `new X()` inside a test
+# body pays calldata gas on X's initcode, 4 per zero byte and 16 per non-zero
+# byte, and the metadata hash is part of that initcode. The hash covers source
+# text, comments included, so with it in place a comment edit moved four
+# snapshot entries by 12 gas. Without it, the snapshot moves only when code
+# does.
+#
+# The fuzz settings serve the same end. The fuzzer seeds its inputs with
+# constants harvested from every compiled contract, so adding an unrelated test
+# changed the inputs, and with them the mean gas of every fuzz entry. A fixed
+# seed and no dictionary make the inputs depend on the seed alone. Real fuzzing
+# runs under the default and `ci` profiles, where the dictionary stays on.
+[profile.gas]
+bytecode_hash = "none"
+fuzz = { seed = "0x4d4f4e41", dictionary_weight = 0 }
+
+# The tests deploy the real EntryPoint v0.8 from `lib/` rather than a mock, which
+# would agree with whatever I believe about the interface — and being wrong
+# about that interface is what I am rebuilding. The fork test is what proves
+# that local EntryPoint is the one deployed on Base Sepolia.
 [rpc_endpoints]
 base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
 

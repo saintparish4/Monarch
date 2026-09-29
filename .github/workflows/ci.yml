@@ -1,0 +1,195 @@
+# Every gate in the README runs here, on every push and pull request, instead
+# of on my machine.
+#
+# One job per gate, all blocking, so a red build names its cause in the job
+# list rather than in a log. Every job checks out submodules: `lib/` is
+# committed as gitlinks, and without them every import fails with an error that
+# reads like a remapping problem.
+#
+# Foundry is pinned to the version the gas snapshot was taken with. Test gas is
+# metered per isolated call, so a toolchain upgrade can move the baseline
+# without any code changing; upgrading is a deliberate commit that re-takes the
+# snapshot and says why.
+
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FOUNDRY_VERSION: v1.8.1
+
+jobs:
+  lint:
+    name: lint (fmt + solhint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run fmt:check
+      - run: npm run lint
+
+  test:
+    name: test (build, unit + integration, coverage)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      # `deny = "warnings"` makes this fail on a single compiler or lint warning.
+      - run: forge build --sizes
+      - run: forge test --no-match-path 'test/{invariant,fork}/*'
+        env:
+          FOUNDRY_PROFILE: ci
+      # Coverage compiles with the optimizer off to map bytecode back to source,
+      # so gas costs rise. The integration suite asserts real gas figures (the
+      # postOp overhead against what the EntryPoint takes, the 12,689 billed
+      # live), which only hold for the optimized build, and it ran against that
+      # build in the step above. Leaving it out here costs no coverage: the
+      # unit and invariant suites reach every line it does.
+      #
+      # `forge coverage` has no fail-under flag, so the floor is checked from the
+      # lcov report. Floors sit just under the current figures (99.3% lines,
+      # 96.2% branches): a drop means an untested path was added.
+      - run: >-
+          forge coverage --no-match-coverage '(test|script)/'
+          --no-match-path 'test/{integration,fork}/*'
+          --report summary --report lcov
+      - name: coverage floor
+        run: |
+          python3 - <<'EOF'
+          import sys
+          floors = {"lines": 99.0, "branches": 95.0}
+          lf = lh = brf = brh = 0
+          keep = False
+          for line in open("lcov.info"):
+              if line.startswith("SF:"):
+                  keep = line[3:].strip().startswith("contracts/")
+              elif keep and line.startswith("LF:"):
+                  lf += int(line[3:])
+              elif keep and line.startswith("LH:"):
+                  lh += int(line[3:])
+              elif keep and line.startswith("BRF:"):
+                  brf += int(line[4:])
+              elif keep and line.startswith("BRH:"):
+                  brh += int(line[4:])
+          got = {"lines": 100 * lh / lf, "branches": 100 * brh / brf}
+          failed = False
+          for kind, floor in floors.items():
+              ok = got[kind] >= floor
+              failed |= not ok
+              print(f"{kind}: {got[kind]:.2f}% (floor {floor}%) {'ok' if ok else 'BELOW FLOOR'}")
+          sys.exit(1 if failed else 0)
+          EOF
+
+  invariant:
+    name: invariant (512 runs x depth 64)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      # The `ci` profile sets `fail_on_revert = true`: a handler that trips a
+      # protocol precondition is a broken handler, not a pass.
+      - run: forge test --match-path 'test/invariant/*'
+        env:
+          FOUNDRY_PROFILE: ci
+
+  analyze:
+    name: analyze (slither + ERC-7562 detector)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Slither pinned to the release the detector's suite was run against. The
+      # detector is installed from this checkout, so a change to it is analysed
+      # by the version of it that the change contains.
+      - run: pip install slither-analyzer==0.11.6 ./tools/slither-erc7562
+      - run: slither --list-detectors | grep erc7562-validation-opcodes
+      # `slither.config.json` sets `fail_on: medium`, which the detector trips.
+      - run: slither .
+      - name: detector suite
+        run: |
+          forge build >/dev/null
+          export SOLC_BINARY="$(find "$HOME/.svm" "$HOME/.local/share/svm" -type f -name 'solc-0.8.28' 2>/dev/null | head -1)"
+          test -x "$SOLC_BINARY"
+          python tools/slither-erc7562/tests/test_detectors.py
+
+  gas:
+    name: gas (snapshot --check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      # A diff against the committed baseline, never a regeneration: a job that
+      # rebuilds its own baseline lets a regression stay green.
+      - run: npm run snapshot:check
+
+  fork:
+    name: fork (local EntryPoint is the deployed one)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      # The public endpoint is enough for one fork read. A repository variable
+      # can point it somewhere less rate-limited. REQUIRE_FORK turns "no RPC"
+      # into a failure instead of the silent pass a local checkout gets.
+      - run: npm run test:fork
+        env:
+          BASE_SEPOLIA_RPC_URL: ${{ vars.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org' }}
+          REQUIRE_FORK: "true"
+
+  demo:
+    name: demo (typecheck)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: demo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: demo/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
