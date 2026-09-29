@@ -11,9 +11,10 @@
     "lint": "solhint 'contracts/**/*.sol'",
     "fmt": "forge fmt && prettier --write '**/*.{md,json,yml}'",
     "fmt:check": "forge fmt --check && prettier --check '**/*.{md,json,yml}'",
-    "snapshot": "forge snapshot --no-match-path 'test/invariant/*'",
+    "snapshot": "FOUNDRY_PROFILE=gas forge snapshot --no-match-path 'test/{invariant,fork}/*'",
     "analyze": "slither .",
-    "snapshot:check": "forge snapshot --check --no-match-path 'test/invariant/*'"
+    "snapshot:check": "FOUNDRY_PROFILE=gas forge snapshot --check --no-match-path 'test/{invariant,fork}/*'",
+    "test:fork": "FOUNDRY_PROFILE=fork forge test"
   },
   "devDependencies": {
     "prettier": "^3.6.2",

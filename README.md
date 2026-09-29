@@ -166,15 +166,21 @@ and is now billed 2,136 more.
 Runtime size 7,894 bytes. Per-test figures are in
 [`.gas-snapshot`](.gas-snapshot), which is committed and checked with
 `npm run snapshot:check` — a diff, never a regenerate, because a baseline that
-rebuilds itself lets a regression stay green. That check is run by hand today;
-wiring it into CI is still to do. Invariant runs are excluded from the snapshot
-because their gas is not deterministic across seeds.
+rebuilds itself lets a regression stay green. CI runs it on every push, with
+Foundry pinned to the version that took the baseline. Snapshots are taken with
+the metadata hash left out of the bytecode: tests are metered per isolated call,
+so a `new X()` in a test pays calldata gas on X's initcode, and with the hash in
+it a comment edit moved four entries by 12 gas. Invariant runs are excluded from
+the snapshot because their gas is not deterministic across seeds.
 
 ## Testing
 
 Tests run against real EntryPoint v0.8 bytecode deployed into the test VM, never
 a mock. A mock agrees with whatever I believed about the interface, and
 misreading that interface is the entire bug class this rewrite exists to remove.
+A fork test holds that claim to account: compiled with the settings upstream
+shipped, the EntryPoint in `lib/` must match the one deployed at
+`0x4337084D…Ff108` on Base Sepolia in every executed byte.
 
 Three tiers, by how much of the real system is present: **unit** (one function,
 `vm.prank` in place of the EntryPoint), **integration** (paymaster + EntryPoint +
@@ -228,10 +234,14 @@ FOUNDRY_PROFILE=ci forge test           # 115 tests, invariants at depth 64
 npm run snapshot:check                  # gas has not regressed
 npm install && npm run lint             # solhint, cyclomatic complexity 7
 npm run analyze                         # slither, zero high and zero medium
+npm run test:fork                       # lib/ EntryPoint == the deployed one
 ```
 
-Both `--check` gates have been deliberately broken once to confirm they can
-fail. A check that cannot fail is not checking anything.
+All of them run in CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)),
+one job each, on every push and pull request, along with line and branch
+coverage floors and a typecheck of the demo. Both `--check` gates and the fork
+test have been deliberately broken once to confirm they can fail. A check that
+cannot fail is not checking anything.
 
 ## Layout
 
@@ -240,6 +250,7 @@ contracts/              MonarchPaymaster, plus Constants and Validation
 test/unit/              branch coverage, fuzz, access matrix, defect regressions
 test/integration/       handleOps against the real EntryPoint
 test/invariant/         solvency and value conservation under stateful fuzzing
+test/fork/              the local EntryPoint against the deployed bytecode
 tools/slither-erc7562/  the ERC-7562 detector, with its own tests and corpus
 script/                 deploy + stake, and register + fund an app
 deployments/            deployed addresses and transaction hashes, per network
