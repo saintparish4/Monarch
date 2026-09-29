@@ -6,6 +6,7 @@ import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
 
 import {MonarchPaymaster} from "../contracts/MonarchPaymaster.sol";
 import {Constants} from "../contracts/libraries/Constants.sol";
+import {TestnetOnly} from "./TestnetOnly.sol";
 
 /// @notice Deploy the paymaster against the canonical EntryPoint v0.8, stake it,
 ///         and fund the owner buffer — in one broadcast.
@@ -19,9 +20,11 @@ import {Constants} from "../contracts/libraries/Constants.sol";
 ///      and top up. `addStake` is additive, so raising the stake later is one
 ///      call; the unstake delay can only ever be increased.
 ///
+///      Base Sepolia or anvil only; see `TestnetOnly`.
+///
 ///      forge script script/Deploy.s.sol --rpc-url base_sepolia --broadcast
-contract Deploy is Script {
-    function run() external returns (MonarchPaymaster paymaster) {
+contract Deploy is Script, TestnetOnly {
+    function run() external testnetOnly returns (MonarchPaymaster paymaster) {
         uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         uint256 stake = vm.envOr("STAKE_WEI", uint256(0.01 ether));
         uint32 unstakeDelay = uint32(vm.envOr("UNSTAKE_DELAY_SEC", uint256(1 days)));
