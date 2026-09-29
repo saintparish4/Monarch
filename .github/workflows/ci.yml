@@ -62,10 +62,20 @@ jobs:
       - run: forge test --no-match-path 'test/{invariant,fork}/*'
         env:
           FOUNDRY_PROFILE: ci
+      # Coverage compiles with the optimizer off to map bytecode back to source,
+      # so gas costs rise. The integration suite asserts real gas figures (the
+      # postOp overhead against what the EntryPoint takes, the 12,689 billed
+      # live), which only hold for the optimized build, and it ran against that
+      # build in the step above. Leaving it out here costs no coverage: the
+      # unit and invariant suites reach every line it does.
+      #
       # `forge coverage` has no fail-under flag, so the floor is checked from the
       # lcov report. Floors sit just under the current figures (99.3% lines,
       # 96.2% branches): a drop means an untested path was added.
-      - run: forge coverage --no-match-coverage '(test|script)/' --report summary --report lcov
+      - run: >-
+          forge coverage --no-match-coverage '(test|script)/'
+          --no-match-path 'test/{integration,fork}/*'
+          --report summary --report lcov
       - name: coverage floor
         run: |
           python3 - <<'EOF'
