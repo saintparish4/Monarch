@@ -23,12 +23,12 @@
       "retired": "charged a 25,000 gas flat overhead that overbilled every operation by 12,311 gas",
       "depositRecovered": true,
       "stakeWei": "10000000000000000",
-      "stakeUnlocked": true,
-      "stakeWithdrawableAt": 1789768496,
+      "stakeWithdrawn": true,
       "recovery": {
         "withdrawAppBudget": "0x63dc7a898c7fb6cd67447375d8d765de3a1022391701ddb9c6ee357a942f9642",
         "withdrawTo": "0x1b722bf7c7e3b39aaad65615de7db74b41c5cd04cde7dbb74e236b70c0287a90",
-        "unlockStake": "0x26b8cbea0f340ef79fd7d2d9ebab914ad44d7911475e78cc330c5e111622f3f3"
+        "unlockStake": "0x26b8cbea0f340ef79fd7d2d9ebab914ad44d7911475e78cc330c5e111622f3f3",
+        "withdrawStake": "0x261aafa969780e567b86bba8f79b9c5045c2a371e7e7dcc6576c6b42a3fd6183"
       }
     },
     {
@@ -37,12 +37,12 @@
       "retired": "capped paymasterPostOpGasLimit at 40,000, which bundlers exceed during gas estimation, so no operation could be estimated",
       "depositRecovered": true,
       "stakeWei": "10000000000000000",
-      "stakeUnlocked": true,
-      "stakeWithdrawableAt": 1789768502,
+      "stakeWithdrawn": true,
       "recovery": {
         "withdrawAppBudget": "0x035a440fc903e5c41e2f998db30b049b8658cc31823efbde7a8493f98a8cba30",
         "withdrawTo": "0x7f2e412e99911aab125a0091d48d4ce18dc71940a9203acfc0de65833e7b37f2",
-        "unlockStake": "0x15603934ae0c0e247f89e8fc10b07072f53955553d7f47c8e5c5332f03c3d60b"
+        "unlockStake": "0x15603934ae0c0e247f89e8fc10b07072f53955553d7f47c8e5c5332f03c3d60b",
+        "withdrawStake": "0x9bdf929a08aca2427fbe0f3d4d41efa9c744086e307eb8489cae2a5a567b1a1c"
       }
     },
     {
@@ -51,16 +51,12 @@
       "retired": "identical to the live paymaster; the deploy script was run twice, so this one was never registered or used",
       "depositRecovered": true,
       "stakeWei": "10000000000000000",
-      "stakeUnlocked": true,
-      "stakeWithdrawableAt": 1789768510,
+      "stakeWithdrawn": true,
       "recovery": {
         "withdrawTo": "0xe6da50129308f77d5f853d74e40ec40759d0a9735825b0fe654751bffb02aa0f",
-        "unlockStake": "0x1f4388116ff94c42516f1766037afe5ce863f6ae00ab7b8f2a30c022ef91fa01"
+        "unlockStake": "0x1f4388116ff94c42516f1766037afe5ce863f6ae00ab7b8f2a30c022ef91fa01",
+        "withdrawStake": "0x7288d5410d116d2f74e9560792fd9953c6ad7c898de4df2490dc9a209a711c85"
       }
     }
-  ],
-  "stakeStillToWithdraw": {
-    "totalWei": "30000000000000000",
-    "note": "withdrawStake(address) on each superseded paymaster once its stakeWithdrawableAt has passed"
-  }
+  ]
 }
