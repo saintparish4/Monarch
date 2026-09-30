@@ -8,13 +8,27 @@ set -uo pipefail
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 WORK=${WORK:-/tmp/erc7562-corpus}
-DETECT="--detect erc7562-validation-opcodes"
+DETECT="--detect erc7562-validation-opcodes --json -"
 SOLC=${SOLC_BINARY:-$(ls -d "$HOME"/.local/share/svm/0.8.28/solc-0.8.28 2>/dev/null || echo solc)}
+# Slither's own interpreter, which is where the plugin and its tests live.
+PY=$(head -1 "$(command -v slither)" | cut -c3-)
 
+# Counts findings from Slither's JSON output, which is a stable interface; the
+# "N result(s) found" line in its human output is not. Prints ERROR, with the
+# tail of the output on stderr, when Slither did not produce a result at all,
+# so a compile failure can never read as "0 findings".
 count() {
   local out; out=$(cat)
-  echo "$out" | grep -oE '[0-9]+ result\(s\) found' | grep -oE '^[0-9]+' | head -1 \
-    || { echo "ERROR"; echo "$out" | tail -3 >&2; }
+  printf '%s' "$out" | python3 -c '
+import json, sys
+try:
+    report = json.loads(sys.stdin.read())
+except ValueError:
+    sys.exit(1)
+if not report.get("success"):
+    sys.exit(1)
+print(len(report.get("results", {}).get("detectors", [])))
+' || { echo "ERROR"; printf '%s\n' "$out" | tail -3 >&2; }
 }
 row() { printf '%-44s %s\n' "$1" "$2"; }
 
@@ -62,16 +76,18 @@ cp "$HERE/tests/fixtures/Fixtures.sol" "$WORK/Fixtures.sol"
 
 echo "target                                       findings"
 echo "-----------------------------------------------------"
-row "fixtures (self-check, expect 9)" \
+# The expected count comes from the test suite, so this label can't go stale
+# when a fixture is added.
+row "fixtures (self-check, expect $("$PY" "$HERE/tests/test_detectors.py" --expected-count))" \
     "$( cd "$WORK" && slither Fixtures.sol $DETECT --solc "$SOLC" \
-        --compile-force-framework solc 2>&1 | count )"
+        --compile-force-framework solc 2>/dev/null | count )"
 row "eth-infinitism/account-abstraction v0.8" \
-    "$( cd "$WORK/upstream" && slither . $DETECT --filter-paths 'src/Corpus' 2>&1 | count )"
+    "$( cd "$WORK/upstream" && slither . $DETECT --filter-paths 'src/Corpus' 2>/dev/null | count )"
 row "monarch (current)" \
-    "$( cd "$HERE/../.." && slither . $DETECT 2>&1 | count )"
+    "$( cd "$HERE/../.." && slither . $DETECT 2>/dev/null | count )"
 
 if [ -n "${EXTRA_TARGET:-}" ]; then
   row "$(basename "$EXTRA_TARGET")" \
       "$( cd "$EXTRA_TARGET" && slither . $DETECT \
-          --filter-paths 'lib|test|script' 2>&1 | count )"
+          --filter-paths 'lib|test|script' 2>/dev/null | count )"
 fi

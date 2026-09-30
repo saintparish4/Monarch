@@ -7,9 +7,26 @@ name = "slither-erc7562"
 version = "0.1.0"
 description = "Slither detectors for ERC-4337 validation-phase rules (ERC-7562)"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"  # slither-analyzer 0.11 needs it
 license = { text = "MIT" }
-dependencies = ["slither-analyzer>=0.10"]
+authors = [{ name = "Sharif Parish", email = "saintparish6@gmail.com" }]
+keywords = ["slither", "erc-4337", "erc-7562", "account-abstraction", "paymaster", "static-analysis"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Security",
+    "Topic :: Software Development :: Quality Assurance",
+]
+# Bounded above on purpose. The detector walks Slither's IR (`library_calls`,
+# `high_level_calls`, operation objects rather than functions), and that API has
+# changed shape between minor releases before. Widen the bound after running the
+# test suite against the new release, not before.
+dependencies = ["slither-analyzer>=0.11,<0.12"]
+
+[project.urls]
+Homepage = "https://github.com/saintparish4/monarch/tree/master/tools/slither-erc7562"
+Repository = "https://github.com/saintparish4/monarch"
+Issues = "https://github.com/saintparish4/monarch/issues"
 
 [project.entry-points."slither_analyzer.plugin"]
 slither-erc7562 = "slither_erc7562:make_plugin"

@@ -206,13 +206,14 @@ by every bundler, after it has been deployed, staked and funded.
 
 So it became a Slither detector: [`tools/slither-erc7562`](tools/slither-erc7562).
 It walks everything reachable from `validatePaymasterUserOp` or `validateUserOp`,
-through internal calls and modifiers, and reports the forbidden opcodes.
+through internal calls, modifiers, library calls and `this.f()` calls, in
+Solidity and in inline assembly, and reports the forbidden opcodes.
 
 | Corpus                                                  | Findings |
 | ------------------------------------------------------- | -------- |
 | `eth-infinitism/account-abstraction` v0.8, 48 contracts | 0        |
 | This paymaster                                          | 0        |
-| Monarch's own pre-rewrite code, from git history        | 3        |
+| Monarch's own pre-rewrite code, from git history        | 4        |
 
 Reproduce with `tools/slither-erc7562/run-corpus.sh`. It runs as part of this
 project's own static-analysis gate.
