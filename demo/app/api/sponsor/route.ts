@@ -26,9 +26,15 @@ import { config } from "@/lib/config";
 // NEXT_PUBLIC_ ships to every visitor, and a signer key there hands the app's
 // whole budget to the first person who reads the bundle.
 //
-// The endpoint is unauthenticated. On a testnet the worst case is that someone
-// drains a testnet budget; for anything real, authenticating the caller is the
-// first thing to build, before this route is reachable at all.
+// TESTNET ONLY. DO NOT SHIP THIS ROUTE AS WRITTEN WITH A REAL BUDGET.
+//
+// The endpoint is unauthenticated: anyone who can reach it gets a signature for
+// any call data they like, as fast as they can ask, and the per-operation cost
+// ceiling below is the only limit. On a testnet the worst case is that someone
+// drains a testnet budget. For anything real, three things come first, before
+// the route is reachable at all: authenticate the caller, rate-limit per user
+// and per smart account, and sponsor only the actions the app offers. Each is
+// sketched below, commented out, at the point in the handler where it belongs.
 
 const MODE_SPONSORED = 1;
 
@@ -76,6 +82,21 @@ const publicClient = createPublicClient({ chain, transport: http(config.rpcUrl) 
 type Body = { phase?: unknown; userOp?: Record<string, unknown> };
 
 export async function POST(request: Request) {
+  // 1. Authenticate. Sponsorship is spending, so it needs a known caller. For
+  //    example, with the app's own session:
+  //
+  //      const session = await getSession(request);
+  //      if (!session) return fail(401, "sign in first");
+  //
+  // 2. Rate-limit, per user and per client address. The counters have to live
+  //    in a shared store (Redis, DynamoDB, Upstash): an in-memory map resets on
+  //    every deploy and is per instance, so a serverless host multiplies the
+  //    limit by however many instances it happens to run.
+  //
+  //      const ip = request.headers.get("x-forwarded-for")?.split(",")[0] ?? "unknown";
+  //      if (!(await limiter.allow(`user:${session.userId}`, { perMinute: 5 }))) return fail(429, "slow down");
+  //      if (!(await limiter.allow(`ip:${ip}`, { perMinute: 20 }))) return fail(429, "slow down");
+
   let body: Body;
   try {
     body = (await request.json()) as Body;
@@ -115,6 +136,18 @@ export async function POST(request: Request) {
   } catch (error) {
     return fail(400, `malformed userOp: ${(error as Error).message}`);
   }
+
+  // 3. Sponsor only what the app offers. Without this the app pays for any call
+  //    the caller can encode, against any contract. Decode the account's
+  //    `execute(target, value, data)` and allow known targets and selectors
+  //    only; also rate-limit per smart account, since one user can own many:
+  //
+  //      const { args } = decodeFunctionData({ abi: simpleAccountAbi, data: userOperation.callData });
+  //      const [target, value, data] = args;
+  //      if (!ALLOWED.has(`${target.toLowerCase()}:${data.slice(0, 10)}`) || value !== 0n) {
+  //        return fail(403, "not a sponsored action");
+  //      }
+  //      if (!(await limiter.allow(`sender:${userOperation.sender}`, { perDay: 50 }))) return fail(429, "daily limit reached");
 
   const maxCost =
     (userOperation.callGasLimit +

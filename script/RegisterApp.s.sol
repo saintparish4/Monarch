@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import {Script, console} from "forge-std/Script.sol";
 
 import {MonarchPaymaster} from "../contracts/MonarchPaymaster.sol";
+import {TestnetOnly} from "./TestnetOnly.sol";
 
 /// @notice Register an app on a deployed paymaster and fund its budget.
 /// @dev Two parties with two keys. The owner registers, because registration is
@@ -14,10 +15,12 @@ import {MonarchPaymaster} from "../contracts/MonarchPaymaster.sol";
 ///      For the demo the app address is the deployer's own, which keeps the
 ///      app's withdraw and signer-rotation rights with a key I already hold.
 ///
+///      Base Sepolia or anvil only; see `TestnetOnly`.
+///
 ///      PAYMASTER=0x... APP_SIGNER=0x... \
 ///        forge script script/RegisterApp.s.sol --rpc-url base_sepolia --broadcast
-contract RegisterApp is Script {
-    function run() external {
+contract RegisterApp is Script, TestnetOnly {
+    function run() external testnetOnly {
         uint256 ownerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         MonarchPaymaster paymaster = MonarchPaymaster(vm.envAddress("PAYMASTER"));
         address app = vm.envOr("APP", vm.addr(ownerKey));

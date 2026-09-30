@@ -2,6 +2,10 @@
 
 **An ERC-4337 paymaster that lets a consumer app pay its users' gas.**
 
+> **Not audited. Testnet only. Do not deploy this to mainnet.** The deploy
+> scripts refuse any chain but Base Sepolia and a local anvil, and the demo's
+> sponsor route is unauthenticated by design.
+
 **Live on Base Sepolia:** [`0xe81CEf1CbDce3a18b093005A2768aF85F78338d2`](https://base-sepolia.blockscout.com/address/0xe81CEf1CbDce3a18b093005A2768aF85F78338d2), source verified, staked, and sponsoring operations for wallets that hold zero ETH.
 
 A new user of a consumer dApp has no ETH. Asking them to bridge some before they
@@ -10,7 +14,9 @@ app deploys so it can pick up that bill — for a specific user, for a specific
 operation, within a budget it controls.
 
 Built against [EntryPoint v0.8](https://github.com/eth-infinitism/account-abstraction/releases/tag/v0.8.0),
-so it works with EIP-7702 delegated EOAs as well as deployed smart accounts.
+so it is designed to work with EIP-7702 delegated EOAs as well as deployed smart
+accounts. The demo exercises `SimpleAccount` only; no 7702 account has been run
+against it yet.
 
 ## Status
 
@@ -20,7 +26,7 @@ nothing is deployed to mainnet.
 |                         |                                                                                                                                                                                           |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Builds                  | ✅ `forge build`, zero warnings                                                                                                                                                           |
-| Tests                   | ✅ 115 passing — 90 unit, 24 integration, and one invariant suite of 6 invariants that `forge` counts as a single test                                                                    |
+| Tests                   | ✅ 119 passing — 94 unit, 24 integration, and one invariant suite of 6 invariants that `forge` counts as a single test                                                                    |
 | Coverage                | ✅ 99.2% lines, 95.5% branches, 100% functions                                                                                                                                            |
 | Static analysis         | ✅ `slither` clean; `solhint` clean at cyclomatic complexity 7                                                                                                                            |
 | Gas                     | ✅ published below and in [`.gas-snapshot`](.gas-snapshot)                                                                                                                                |
@@ -231,7 +237,7 @@ The full gate set, each of which fails rather than prints:
 ```bash
 forge fmt --check                       # formatting
 forge build --sizes                     # zero warnings, forge lint included
-FOUNDRY_PROFILE=ci forge test           # 115 tests, invariants at depth 64
+FOUNDRY_PROFILE=ci forge test           # 119 tests, invariants at depth 64
 npm run snapshot:check                  # gas has not regressed
 npm install && npm run lint             # solhint, cyclomatic complexity 7
 npm run analyze                         # slither, zero high and zero medium
@@ -253,7 +259,7 @@ test/integration/       handleOps against the real EntryPoint
 test/invariant/         solvency and value conservation under stateful fuzzing
 test/fork/              the local EntryPoint against the deployed bytecode
 tools/slither-erc7562/  the ERC-7562 detector, with its own tests and corpus
-script/                 deploy + stake, and register + fund an app
+script/                 deploy + stake, and register + fund an app; testnet only
 deployments/            deployed addresses and transaction hashes, per network
 demo/                   a zero-ETH wallet sending a sponsored operation
 docs/                   the teardown of the contract this replaced
