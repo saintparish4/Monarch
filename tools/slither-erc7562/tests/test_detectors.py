@@ -31,12 +31,17 @@ from slither_erc7562.rules import (  # noqa: E402
     BANNED_CALLS,
     BANNED_VARIABLES,
     PERMITTED,
+    RULES,
     VALIDATION_ENTRY_POINTS,
 )
 
 FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures", "Fixtures.sol")
-SOLC = os.environ.get(
-    "SOLC_BINARY", os.path.expanduser("~/.local/share/svm/0.8.28/solc-0.8.28")
+EXAMPLES_DIR = os.path.join(os.path.dirname(__file__), "..", "examples")
+# solc 0.8.28: $SOLC_BINARY if set, else Foundry's copy if there is one, else
+# whatever `solc` is on PATH (`solc-select install 0.8.28 && solc-select use 0.8.28`).
+_FOUNDRY_SOLC = os.path.expanduser("~/.local/share/svm/0.8.28/solc-0.8.28")
+SOLC = os.environ.get("SOLC_BINARY") or (
+    _FOUNDRY_SOLC if os.path.exists(_FOUNDRY_SOLC) else shutil.which("solc") or "solc"
 )
 
 # contract -> every (opcode, spelling) it should report, with multiplicity. A
@@ -92,6 +97,7 @@ EXPECTED = {
         ("SELFDESTRUCT", "selfdestruct(address)"): 1,
         ("SELFDESTRUCT", "selfdestruct(uint256)"): 1,
     },
+    "InvalidOpcode": {("INVALID", "invalid()"): 1},
 }
 
 # Where the finding should be attributed, for the cases where that is the point.
@@ -115,13 +121,55 @@ EXPECTED_SILENT = {
     "AbstractClockPaymaster",
 }
 
+# The examples in `examples/` are documentation, and the README quotes what each
+# one reports. Checked here with the same exactness as the fixtures, so the
+# documentation cannot drift from the detector. file -> contract -> findings;
+# every other contract with an entry point in that file must stay silent.
+EXAMPLES = {
+    "Clock.sol": {"ClockCheckingPaymaster": {("TIMESTAMP", "block.timestamp"): 1}},
+    "HidingPlaces.sol": {
+        "ClockInModifier": {("TIMESTAMP", "block.timestamp"): 1},
+        "ClockInLibrary": {("TIMESTAMP", "block.timestamp"): 1},
+        "ClockInAssembly": {("TIMESTAMP", "timestamp()"): 1},
+    },
+    "Balance.sol": {"BalanceCheckingPaymaster": {("BALANCE", "balance(address)"): 1}},
+    "BundlerAllowlist.sol": {"OriginAllowlistPaymaster": {("ORIGIN", "tx.origin"): 1}},
+    "OutsideValidation.sol": {},
+}
+EXAMPLES_SILENT = {
+    "Clock.sol": {"WindowReturningPaymaster"},
+    "Balance.sol": {"DepositLedgerPaymaster"},
+    # Silent only because of its `slither-disable-next-line`, which is the point.
+    "BundlerAllowlist.sol": {"TriagedAllowlistPaymaster"},
+    "OutsideValidation.sol": {"ClockInPostOpPaymaster"},
+}
+
+# The opcode lists of the two rules this detector reports, as ERC-7562 publishes
+# them (eips.ethereum.org/EIPS/eip-7562#opcode-rules). Kept here rather than
+# read from `rules.RULES`, so that a finding filed under the wrong rule fails
+# against the spec instead of agreeing with itself.
+SPEC_RULES = {
+    "OP-011": {
+        "ORIGIN", "GASPRICE", "BLOCKHASH", "COINBASE", "TIMESTAMP", "NUMBER",
+        "PREVRANDAO", "DIFFICULTY", "GASLIMIT", "BASEFEE", "BLOBHASH",
+        "BLOBBASEFEE", "CREATE", "INVALID", "SELFDESTRUCT",
+    },
+    "OP-080": {"BALANCE", "SELFBALANCE"},
+}
+
+
+def spec_rule(opcode):
+    return next((rule for rule, opcodes in SPEC_RULES.items() if opcode in opcodes), None)
+
+
 # The fixture that must read every PERMITTED spelling and report none of them.
 PERMITTED_FIXTURE = "CleanPaymaster"
 
 # The rendered description, as `_detect` builds it.
 DESCRIPTION = re.compile(
     r"^(?P<contract>\w+)\.(?P<entry>\w+) reaches (?P<opcode>\w+) "
-    r"via `(?P<spelling>[^`]+)`(?: in (?P<location>\w+))?, "
+    r"via `(?P<spelling>[^`]+)`(?: in (?P<location>\w+))?\. "
+    r"ERC-7562 (?P<rule>[A-Z]+-\d{3}) "
 )
 
 
@@ -129,25 +177,57 @@ def expected_count():
     return sum(sum(findings.values()) for findings in EXPECTED.values())
 
 
-def analyse():
-    # Copy the fixture somewhere with no build system above it before analysing.
+def analyse(source=FIXTURES, siblings=()):
+    # Copy the source somewhere with no build system above it before analysing.
     # crytic-compile walks up from the working directory looking for a build
     # system, and this package lives inside a Foundry project — without this the
     # test shells out to `forge` and fails for reasons that have nothing to do
     # with the detector.
     workdir = tempfile.mkdtemp(prefix="erc7562-")
-    shutil.copy(FIXTURES, os.path.join(workdir, "Fixtures.sol"))
+    for path in (source, *siblings):
+        shutil.copy(path, os.path.join(workdir, os.path.basename(path)))
     origin = os.getcwd()
     try:
         # The walk starts from the working directory, not from the target path.
         os.chdir(workdir)
-        sl = Slither("Fixtures.sol", solc=SOLC, compile_force_framework="solc")
+        sl = Slither(os.path.basename(source), solc=SOLC, compile_force_framework="solc")
         sl.register_detector(ValidationPhaseOpcodes)
         results = [r for per_detector in sl.run_detectors() for r in per_detector]
         return sl, results
     finally:
         os.chdir(origin)
         shutil.rmtree(workdir, ignore_errors=True)
+
+
+def check_examples():
+    """Failures in `examples/`, and the number of findings it rendered."""
+    failures = []
+    total = 0
+    shared = os.path.join(EXAMPLES_DIR, "UserOperation.sol")
+    for filename, expected in EXAMPLES.items():
+        sl, results = analyse(os.path.join(EXAMPLES_DIR, filename), siblings=(shared,))
+        total += len(results)
+        found = {}
+        for result in results:
+            match = DESCRIPTION.match(result["description"])
+            if not match:
+                failures.append(f"{filename}: unparseable result {result['description']!r}")
+                continue
+            key = (match["opcode"], match["spelling"])
+            found.setdefault(match["contract"], Counter())[key] += 1
+        for name in sorted(set(expected) | set(found)):
+            if found.get(name, Counter()) != Counter(expected.get(name, {})):
+                failures.append(
+                    f"{filename}: {name} expected {expected.get(name, {})}, "
+                    f"got {dict(found.get(name, {}))}"
+                )
+        declared = {c.name for c in sl.contracts}
+        for name in sorted(EXAMPLES_SILENT.get(filename, set())):
+            if name not in declared:
+                failures.append(f"{filename}: {name} expected silent, but it is missing")
+        if not any(f.startswith(filename) for f in failures):
+            print(f"  ok  examples/{filename:<22} {sum(len(v) for v in expected.values())} reported")
+    return failures, total
 
 
 def spellings_read(function):
@@ -171,6 +251,12 @@ def main():
             failures.append(f"unparseable result: {result['description']!r}")
             continue
         contract = match["contract"]
+        # The rule named must be the one ERC-7562 files that opcode under.
+        if match["rule"] != spec_rule(match["opcode"]):
+            failures.append(
+                f"{contract}: {match['opcode']} reported under {match['rule']}, "
+                f"but ERC-7562 lists it under {spec_rule(match['opcode'])}"
+            )
         found.setdefault(contract, Counter())[(match["opcode"], match["spelling"])] += 1
         where.setdefault(contract, set()).add(match["location"] or match["entry"])
 
@@ -213,6 +299,14 @@ def main():
     else:
         print(f"  ok  every map key fires ({len(fired)} spellings)")
 
+    # Every opcode the maps can report must name its rule and say why. A
+    # finding without one would render as a KeyError halfway through a run.
+    unexplained = (set(BANNED_VARIABLES.values()) | set(BANNED_CALLS.values())) - set(RULES)
+    if unexplained:
+        failures.append(f"opcodes with no ERC-7562 rule attached: {sorted(unexplained)}")
+    else:
+        print(f"  ok  every opcode names its rule ({len(RULES)} opcodes)")
+
     # PERMITTED is enforced, not decorative: the clean fixture must actually
     # read each spelling, and (checked above) must report nothing.
     clean = next(c for c in sl.contracts if c.name == PERMITTED_FIXTURE)
@@ -233,13 +327,19 @@ def main():
     if len(results) != expected_count():
         failures.append(f"expected {expected_count()} results in total, got {len(results)}")
 
+    example_failures, example_total = check_examples()
+    failures += example_failures
+
     print()
     if failures:
         for failure in failures:
             print(f"  FAIL {failure}")
         print(f"\n{len(failures)} failed")
         return 1
-    print(f"all passed: {expected_count()} findings across {len(EXPECTED)} fixtures")
+    print(
+        f"all passed: {expected_count()} findings across {len(EXPECTED)} fixtures, "
+        f"{example_total} across {len(EXAMPLES)} example files"
+    )
     return 0
 
 

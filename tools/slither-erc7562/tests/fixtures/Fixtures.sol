@@ -367,3 +367,22 @@ contract SelfDestructs {
         return ("", 0);
     }
 }
+
+/// EXPECT: INVALID, which ERC-7562 lists in OP-011 and only Yul can spell.
+/// Solidity's `assert` compiles to a Panic revert rather than to INVALID, so the
+/// `assert` here is correctly not reported.
+contract InvalidOpcode {
+    function validatePaymasterUserOp(bytes calldata, bytes32, uint256 maxCost)
+        external
+        pure
+        returns (bytes memory, uint256)
+    {
+        assert(maxCost != 1);
+        if (maxCost == 2) {
+            assembly {
+                invalid()
+            }
+        }
+        return ("", 0);
+    }
+}

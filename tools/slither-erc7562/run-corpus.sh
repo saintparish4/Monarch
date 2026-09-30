@@ -83,8 +83,16 @@ row "fixtures (self-check, expect $("$PY" "$HERE/tests/test_detectors.py" --expe
         --compile-force-framework solc 2>/dev/null | count )"
 row "eth-infinitism/account-abstraction v0.8" \
     "$( cd "$WORK/upstream" && slither . $DETECT --filter-paths 'src/Corpus' 2>/dev/null | count )"
-row "monarch (current)" \
-    "$( cd "$HERE/../.." && slither . $DETECT 2>/dev/null | count )"
+# The paymaster this detector was written alongside. Found automatically when
+# this runs from inside the Monarch repository; anywhere else, point MONARCH at
+# a clone of it.
+MONARCH=${MONARCH:-$HERE/../..}
+if [ -f "$MONARCH/contracts/MonarchPaymaster.sol" ]; then
+  row "monarch (current)" \
+      "$( cd "$MONARCH" && slither . $DETECT 2>/dev/null | count )"
+else
+  row "monarch (current)" "skipped: set MONARCH=/path/to/monarch"
+fi
 
 if [ -n "${EXTRA_TARGET:-}" ]; then
   row "$(basename "$EXTRA_TARGET")" \
