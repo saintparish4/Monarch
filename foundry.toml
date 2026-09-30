@@ -31,7 +31,7 @@ no_match_path = "test/fork/*"
 # and reaches into internals on purpose, so production severities there are
 # noise. Coverage is scoped the same way, for the same reason.
 [lint]
-ignore = ["test/*", "test/**/*", "script/*", "script/**/*"]
+ignore = ["test/*", "test/**/*", "script/*", "script/**/*", "cases/*", "cases/**/*"]
 
 [profile.ci]
 verbosity = 3
@@ -50,6 +50,19 @@ optimizer_runs = 1_000_000
 # emptied: an empty glob excludes every test. `test/unit` isn't compiled under
 # this profile anyway.
 no_match_path = "test/unit/*"
+
+# The failure cases: paymasters that are broken on purpose, each beside its
+# fix, and the tests that show the difference. Their own profile, and not the
+# default's `test` directory, so that nothing else sees them: `forge build`, the
+# coverage floors, `slither .` and the gas snapshot all run under the default
+# profile, and a contract written to be wrong has no business in any of them.
+#
+# Verbosity 3 is not cosmetic. It switches on Foundry's execution tracer, and
+# `vm.startDebugTraceRecording`, which the cases use to see the opcodes a
+# paymaster runs during validation the way a bundler does, fails without it.
+[profile.cases]
+test = "cases"
+verbosity = 3
 
 # Gas snapshots. Identical to the default except that the CBOR metadata hash is
 # left out of the bytecode. Tests run isolated, so a `new X()` inside a test

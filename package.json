@@ -9,12 +9,13 @@
     "build": "forge build",
     "test": "forge test",
     "lint": "solhint 'contracts/**/*.sol'",
-    "fmt": "forge fmt && prettier --write '**/*.{md,json,yml}'",
-    "fmt:check": "forge fmt --check && prettier --check '**/*.{md,json,yml}'",
+    "fmt": "forge fmt && forge fmt cases && prettier --write '**/*.{md,json,yml}'",
+    "fmt:check": "forge fmt --check && forge fmt --check cases && prettier --check '**/*.{md,json,yml}'",
     "snapshot": "FOUNDRY_PROFILE=gas forge snapshot --no-match-path 'test/{invariant,fork}/*'",
     "analyze": "slither .",
     "snapshot:check": "FOUNDRY_PROFILE=gas forge snapshot --check --no-match-path 'test/{invariant,fork}/*'",
-    "test:fork": "FOUNDRY_PROFILE=fork forge test"
+    "test:fork": "FOUNDRY_PROFILE=fork forge test",
+    "test:cases": "FOUNDRY_PROFILE=cases forge test"
   },
   "devDependencies": {
     "prettier": "^3.6.2",
