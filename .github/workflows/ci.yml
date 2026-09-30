@@ -178,6 +178,28 @@ jobs:
           BASE_SEPOLIA_RPC_URL: ${{ vars.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org' }}
           REQUIRE_FORK: "true"
 
+  cases:
+    name: cases (failure cases + what the detector sees)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Every broken paymaster in `cases/` next to its fix, against the real
+      # EntryPoint. The broken versions are in their own profile so no other
+      # job compiles them.
+      - run: npm run test:cases
+      # Each case says whether a static check can see its failure; this holds
+      # the detector to those answers.
+      - run: pip install slither-analyzer==0.11.6 ./tools/slither-erc7562
+      - run: python cases/check-detector.py
+
   demo:
     name: demo (typecheck)
     runs-on: ubuntu-latest

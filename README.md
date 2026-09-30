@@ -27,7 +27,7 @@ nothing is deployed to mainnet.
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Builds                  | ✅ `forge build`, zero warnings                                                                                                                                                           |
 | Tests                   | ✅ 119 passing — 94 unit, 24 integration, and one invariant suite of 6 invariants that `forge` counts as a single test                                                                    |
-| Coverage                | ✅ 99.2% lines, 95.5% branches, 100% functions                                                                                                                                            |
+| Coverage                | ✅ 99.3% lines, 96.2% branches, 100% functions                                                                                                                                            |
 | Static analysis         | ✅ `slither` clean; `solhint` clean at cyclomatic complexity 7                                                                                                                            |
 | Gas                     | ✅ published below and in [`.gas-snapshot`](.gas-snapshot)                                                                                                                                |
 | Deployed (Base Sepolia) | ✅ [`0xe81CEf1C…38d2`](https://base-sepolia.blockscout.com/address/0xe81CEf1CbDce3a18b093005A2768aF85F78338d2), source verified on Sourcify and Blockscout; see [Deployment](#deployment) |
@@ -148,10 +148,11 @@ cd demo && npm install && npm run dev
 ```
 
 The sponsor route signs with `APP_SIGNER_PRIVATE_KEY` from the repository's
-`.env`, and only the registered signer's key works. To run it yourself, deploy
-and register your own app with the scripts above. Then point
-`deployments/base-sepolia.json` at your addresses. The endpoint is
-unauthenticated, which is fine for a testnet budget and nothing else.
+`.env`, and only the registered signer's key works. To run it yourself,
+[`docs/walkthrough.md`](docs/walkthrough.md) goes from two fresh keys to a
+sponsored operation on your own deployment, and back to getting the testnet ETH
+out again. The endpoint is unauthenticated, which is fine for a testnet budget
+and nothing else.
 
 ## Gas
 
@@ -201,6 +202,27 @@ mechanical rather than a judgement. And each historical defect in the code this
 replaced has a numbered regression test, because a rewrite that does not lock
 them out can reintroduce them.
 
+## Failure cases
+
+[`cases/`](cases) is six ways a paymaster fails that its own tests do not show,
+each as a broken contract, its fix, and a test against the real EntryPoint v0.8
+that tells the two apart. They answer the question this project kept asking:
+my paymaster works in my tests, so why does the bundler reject it, and does its
+accounting survive failure?
+
+| Case                                                                      | What goes wrong                                     |
+| ------------------------------------------------------------------------- | --------------------------------------------------- |
+| [Validation reads the clock](cases/01-validation-reads-the-clock)         | Every bundler drops the operation                   |
+| [A ceiling on the postOp gas limit](cases/02-postop-gas-ceiling)          | The paymaster cannot be gas-estimated               |
+| [Too little gas for `postOp`](cases/03-starved-postop)                    | The paymaster pays, nobody is charged               |
+| [Several sponsorships against one budget](cases/04-budget-contention)     | The overdraw lands on other apps, or a ban          |
+| [A signature that leaves fields out](cases/05-unbound-sponsorship)        | The sender spends the app's money on something else |
+| [Withdrawing against the whole deposit](cases/06-withdraw-takes-deposits) | The owner can take users' balances                  |
+
+Four are failures Monarch or its predecessor shipped; two are decisions it had
+to make, shown with the version it did not choose. Only the first is visible to
+a static check. Run them with `npm run test:cases`.
+
 ## Tooling
 
 The worst defect in the code this replaced was reading `block.timestamp` during
@@ -235,13 +257,14 @@ forge test
 The full gate set, each of which fails rather than prints:
 
 ```bash
-forge fmt --check                       # formatting
+forge fmt --check                       # formatting (and --check cases)
 forge build --sizes                     # zero warnings, forge lint included
 FOUNDRY_PROFILE=ci forge test           # 119 tests, invariants at depth 64
 npm run snapshot:check                  # gas has not regressed
 npm install && npm run lint             # solhint, cyclomatic complexity 7
 npm run analyze                         # slither, zero high and zero medium
 npm run test:fork                       # lib/ EntryPoint == the deployed one
+npm run test:cases                      # the failure cases, broken and fixed
 ```
 
 All of them run in CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)),
@@ -258,11 +281,12 @@ test/unit/              branch coverage, fuzz, access matrix, defect regressions
 test/integration/       handleOps against the real EntryPoint
 test/invariant/         solvency and value conservation under stateful fuzzing
 test/fork/              the local EntryPoint against the deployed bytecode
+cases/                  six paymaster failures, each broken and fixed, with tests
 tools/slither-erc7562/  the ERC-7562 detector, with its own tests and corpus
 script/                 deploy + stake, and register + fund an app; testnet only
 deployments/            deployed addresses and transaction hashes, per network
 demo/                   a zero-ETH wallet sending a sponsored operation
-docs/                   the teardown of the contract this replaced
+docs/                   the teardown of the contract this replaced, and the demo walkthrough
 ```
 
 ## License
