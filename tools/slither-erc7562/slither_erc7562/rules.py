@@ -57,6 +57,51 @@ BANNED_CALLS = {
     "gasprice()": "GASPRICE",
     "balance(uint256)": "BALANCE",
     "selfdestruct(uint256)": "SELFDESTRUCT",
+    # Yul only. Solidity's `assert` compiles to a Panic revert, not to INVALID.
+    "invalid()": "INVALID",
+}
+
+# The ERC-7562 rule behind each opcode above, and what a contract author needs
+# to know about it. Rule identifiers are copied from the text of ERC-7562, not
+# from memory: https://eips.ethereum.org/EIPS/eip-7562#opcode-rules
+#
+# The explanation is the part a finding exists to deliver. "Banned opcode" tells
+# an author what to delete; "the bundler cannot trust its own simulation" tells
+# them why the contract that passed every test is being dropped.
+_ENVIRONMENT = (
+    "OP-011",
+    "forbids it during validation. Its value can change between the bundler's "
+    "simulation and the block that includes the operation, so a bundler drops any "
+    "operation whose validation uses it",
+)
+_HALTING = (
+    "OP-011",
+    "forbids it during validation. A bundler drops any operation whose validation "
+    "executes it",
+)
+RULES = {
+    "TIMESTAMP": _ENVIRONMENT,
+    "NUMBER": _ENVIRONMENT,
+    "DIFFICULTY": _ENVIRONMENT,
+    "PREVRANDAO": _ENVIRONMENT,
+    "COINBASE": _ENVIRONMENT,
+    "GASLIMIT": _ENVIRONMENT,
+    "BASEFEE": _ENVIRONMENT,
+    "BLOBBASEFEE": _ENVIRONMENT,
+    "BLOCKHASH": _ENVIRONMENT,
+    "BLOBHASH": _ENVIRONMENT,
+    "ORIGIN": _ENVIRONMENT,
+    "GASPRICE": _ENVIRONMENT,
+    "SELFDESTRUCT": _HALTING,
+    "INVALID": _HALTING,
+    # The one rule with an exception this detector cannot see: OP-080 allows
+    # BALANCE and SELFBALANCE in a staked entity, and whether a contract is
+    # staked is a deployment fact, not a source fact. The finding says so.
+    "BALANCE": (
+        "OP-080",
+        "allows it only in a staked entity. Unstaked, a bundler drops the "
+        "operation; if this contract is staked, this finding does not apply",
+    ),
 }
 
 # Explicitly permitted, listed so the exclusions are a decision rather than an
@@ -75,15 +120,16 @@ PERMITTED = {
 
 # Deliberately NOT banned here, though ERC-7562 restricts them:
 #
-#   GAS      — permitted immediately before an external call, and distinguishing
-#              that from misuse needs dataflow this detector does not do. Flagging
-#              every `gasleft()` would be noise.
-#   CREATE   — permitted for the factory deploying the sender. Same problem.
-#   External calls to non-sender-associated addresses — the rule is about the
-#              *address*, not the call, and resolving that statically needs the
-#              storage-association analysis. Worth doing; not in v1.
+#   GAS      — OP-012 permits it immediately before a *CALL, and distinguishing
+#              that from misuse needs dataflow this detector does not do.
+#              Flagging every `gasleft()` would be noise.
+#   CREATE   — OP-011 lists it, with exceptions (OP-031, OP-032, EREP-060) for
+#              deploying the sender. Same problem.
+#   Calls to addresses without code (OP-041), into the EntryPoint (OP-051 to
+#   OP-055), and with value (OP-061) — the rules are about the *address* and the
+#   deployment, not the source, and need the storage-association analysis.
 #
-# Each is a real rule and each is listed in the roadmap rather than silently
+# Each is a real rule and each is listed in the README rather than silently
 # skipped, because a checker that quietly ignores a rule is worse than one that
 # says which rules it covers.
 

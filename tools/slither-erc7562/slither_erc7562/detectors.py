@@ -3,7 +3,7 @@
 from slither.core.declarations import Function
 from slither.detectors.abstract_detector import AbstractDetector, DetectorClassification
 
-from .rules import BANNED_CALLS, BANNED_VARIABLES, VALIDATION_ENTRY_POINTS
+from .rules import BANNED_CALLS, BANNED_VARIABLES, RULES, VALIDATION_ENTRY_POINTS
 
 
 def _callee(operation):
@@ -61,16 +61,18 @@ class ValidationPhaseOpcodes(AbstractDetector):
     IMPACT = DetectorClassification.MEDIUM
     CONFIDENCE = DetectorClassification.HIGH
 
-    WIKI = "https://eips.ethereum.org/EIPS/eip-7562"
+    WIKI = "https://eips.ethereum.org/EIPS/eip-7562#opcode-rules"
     WIKI_TITLE = "ERC-7562 forbidden opcode during validation"
     WIKI_DESCRIPTION = (
         "ERC-7562 forbids a set of opcodes during the validation phase of an "
-        "ERC-4337 bundle, because their results are not deterministic across the "
-        "time between simulation and inclusion. Bundlers enforce this off-chain, "
-        "in a tracer, when an operation is submitted. Nothing on-chain enforces "
-        "it, so a contract that breaks the rule passes every unit test and every "
-        "EntryPoint call in a test VM, then is rejected by every bundler in "
-        "production."
+        "ERC-4337 bundle (OP-011), and allows BALANCE and SELFBALANCE only in a "
+        "staked entity (OP-080), because their results are not deterministic "
+        "across the time between simulation and inclusion. Bundlers enforce this "
+        "off-chain, in a tracer, when an operation is submitted. Nothing on-chain "
+        "enforces it, so a contract that breaks the rule passes every unit test "
+        "and every EntryPoint call in a test VM, then is rejected by every bundler "
+        "in production. This is an early check, not a compliance verdict: "
+        "ERC-7562's storage, staking and reputation rules are out of its reach."
     )
     WIKI_EXPLOIT_SCENARIO = """
 ```solidity
@@ -106,6 +108,10 @@ The paymaster is deployed, staked and funded, and sponsors nothing."""
                     continue
                 findings = self._scan(entry)
                 for function, node, opcode, spelling in findings:
+                    # Name the rule and say why, so the finding is actionable by
+                    # someone who has never read ERC-7562: what the bundler does
+                    # with this operation, not only which opcode it dislikes.
+                    rule, explanation = RULES[opcode]
                     info = [
                         contract.name,
                         ".",
@@ -114,7 +120,7 @@ The paymaster is deployed, staked and funded, and sponsors nothing."""
                         opcode,
                         f" via `{spelling}`",
                         "" if function is entry else f" in {function.name}",
-                        ", which ERC-7562 forbids during validation:\n\t- ",
+                        f". ERC-7562 {rule} {explanation}:\n\t- ",
                         node,
                         "\n",
                     ]
