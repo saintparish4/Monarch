@@ -301,6 +301,185 @@ contract PaymasterV1 {
 contract PaymasterV2 is PaymasterV1 {}
 
 // ---------------------------------------------------------------------------
+// Which implementation a call resolves to
+// ---------------------------------------------------------------------------
+
+/// The template-method shape, which is how upstream's `BasePaymaster` and most
+/// paymasters built on it are written: the entry point lives in an abstract
+/// base and calls a hook the deployed contract fills in.
+abstract contract HookedPaymaster {
+    function validatePaymasterUserOp(bytes calldata, bytes32, uint256)
+        external
+        view
+        returns (bytes memory, uint256)
+    {
+        return ("", _validate());
+    }
+
+    function _validate() internal view virtual returns (uint256);
+}
+
+/// EXPECT: TIMESTAMP, attributed to `_validate`. The entry point was written
+/// in the base, and the read is in the override it never mentions.
+contract HookReadsClock is HookedPaymaster {
+    function _validate() internal view override returns (uint256) {
+        return block.timestamp;
+    }
+}
+
+/// The same shape with a default hook that reads the clock.
+abstract contract ClockByDefault {
+    function validatePaymasterUserOp(bytes calldata, bytes32, uint256)
+        external
+        view
+        returns (bytes memory, uint256)
+    {
+        return ("", _validate());
+    }
+
+    function _validate() internal view virtual returns (uint256) {
+        return block.timestamp;
+    }
+}
+
+/// EXPECT: clean. The override replaces the default, so the read in the base
+/// is code this contract never runs. Reporting it would be a false alarm about
+/// a line the author already fixed.
+contract HookReplacesClock is ClockByDefault {
+    function _validate() internal pure override returns (uint256) {
+        return 0;
+    }
+}
+
+/// EXPECT: TIMESTAMP. The override calls back into the default it replaced.
+contract HookCallsSuper is ClockByDefault {
+    function _validate() internal view override returns (uint256) {
+        return super._validate() + 1;
+    }
+}
+
+/// A function declared outside any contract.
+function fileLevelClock() view returns (uint256) {
+    return block.timestamp;
+}
+
+/// EXPECT: TIMESTAMP, attributed to the file-level function.
+contract FreeFunctionTimestamp {
+    function validatePaymasterUserOp(bytes calldata, bytes32, uint256)
+        external
+        view
+        returns (bytes memory, uint256)
+    {
+        return ("", fileLevelClock());
+    }
+}
+
+/// A library with an external function, which is linked and reached by
+/// DELEGATECALL instead of being inlined.
+library LinkedWindow {
+    function until(uint256 span) external view returns (uint256) {
+        return block.timestamp + span;
+    }
+}
+
+/// EXPECT: TIMESTAMP, attributed to the library's `until`. The delegatecall
+/// runs under the validation frame like any other code.
+contract LinkedLibraryTimestamp {
+    function validatePaymasterUserOp(bytes calldata, bytes32, uint256)
+        external
+        view
+        returns (bytes memory, uint256)
+    {
+        return ("", LinkedWindow.until(1 days));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Known misses
+//
+// Each contract below runs a banned opcode during validation, and a bundler
+// would drop its operations. The detector says nothing about any of them. They
+// are the README's "what it does not check" written as code: the test holds
+// each one silent, so closing one of these gaps is a deliberate edit to the
+// test and the README together, and a change that closes one by accident
+// cannot pass unnoticed.
+// ---------------------------------------------------------------------------
+
+/// Not an ERC-4337 entity. Something a paymaster might ask the time.
+contract ClockOracle {
+    function clock() external view returns (uint256) {
+        return block.timestamp;
+    }
+}
+
+/// KNOWN MISS: TIMESTAMP, in another contract. The walk stops at a call to a
+/// different address, because which code sits behind it is a deployment fact.
+/// The source being in the same file, as it is here, does not change that.
+contract AsksAnotherContract {
+    ClockOracle internal oracle;
+
+    function validatePaymasterUserOp(bytes calldata, bytes32, uint256)
+        external
+        view
+        returns (bytes memory, uint256)
+    {
+        return ("", oracle.clock());
+    }
+}
+
+interface IClock {
+    function clock() external view returns (uint256);
+}
+
+/// KNOWN MISS: TIMESTAMP, through a self-call written as a cast. It reaches the
+/// same code `this.clock()` does, and `SelfCallTimestamp` above is reported.
+contract CastSelfCall {
+    function clock() external view returns (uint256) {
+        return block.timestamp;
+    }
+
+    function validatePaymasterUserOp(bytes calldata, bytes32, uint256)
+        external
+        view
+        returns (bytes memory, uint256)
+    {
+        return ("", IClock(address(this)).clock());
+    }
+}
+
+/// KNOWN MISS: TIMESTAMP, through a function-typed variable. The call is not
+/// resolved to the function the variable holds.
+contract FunctionPointerClock {
+    function _clock() internal view returns (uint256) {
+        return block.timestamp;
+    }
+
+    function validatePaymasterUserOp(bytes calldata, bytes32, uint256)
+        external
+        view
+        returns (bytes memory, uint256)
+    {
+        function() internal view returns (uint256) read = _clock;
+        return ("", read());
+    }
+}
+
+contract Deployed {}
+
+/// KNOWN MISS: CREATE. OP-011 lists it, with an exception for deploying the
+/// sender that this detector cannot tell apart from any other use, so `new` is
+/// not reported at all.
+contract DeploysInValidation {
+    function validatePaymasterUserOp(bytes calldata, bytes32, uint256)
+        external
+        returns (bytes memory, uint256)
+    {
+        new Deployed();
+        return ("", 0);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Coverage: every key in the opcode maps fires somewhere
 // ---------------------------------------------------------------------------
 

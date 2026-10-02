@@ -151,4 +151,20 @@ contract Case03Test is CaseTest {
             "no forbidden opcode"
         );
     }
+
+    /// @notice The static check says nothing about the fix either. This is
+    ///         the trace that backs its silence up, on a limit the fixed
+    ///         version accepts: at the starving one its validation reverts on
+    ///         the first check, and a trace of that would prove very little.
+    function test_theFixedVersionRunsNoBannedOpcode() public {
+        PackedUserOperation memory op =
+            _paidFromDeposit(address(fixed_), PAYMASTER_POSTOP_GAS, "paid");
+        assertEq(
+            _bannedOpcodeInValidation(IPaymaster(address(fixed_)), op, true),
+            0,
+            "no forbidden opcode ran during validation"
+        );
+        _handle(op);
+        assertEq(target.lastNote(address(account)), "paid", "and the traced operation ran");
+    }
 }

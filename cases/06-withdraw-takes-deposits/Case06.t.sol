@@ -92,4 +92,23 @@ contract Case06Test is CaseTest {
         _handle(op);
         assertEq(target.lastNote(address(account)), "paid", "and it works as a paymaster");
     }
+
+    /// @notice The static check says nothing about the fix either. This is
+    ///         the trace that backs its silence up: an operation the fixed
+    ///         version accepts, and no forbidden opcode on the way.
+    function test_theFixedVersionRunsNoBannedOpcode() public {
+        (SimpleAccount account, uint256 key) = _newAccount("sender");
+        fixed_.depositFor{value: USER_DEPOSIT}(address(account));
+        PackedUserOperation memory op = _op(account, "paid");
+        op.paymasterAndData = _paymasterAndData(address(fixed_), PAYMASTER_POSTOP_GAS, "");
+        op = _signAsAccount(op, key);
+
+        assertEq(
+            _bannedOpcodeInValidation(IPaymaster(address(fixed_)), op, true),
+            0,
+            "no forbidden opcode ran during validation"
+        );
+        _handle(op);
+        assertEq(target.lastNote(address(account)), "paid", "and the traced operation ran");
+    }
 }

@@ -53,6 +53,28 @@ def reachable_from(entry):
     return seen
 
 
+def entry_points(compilation_unit):
+    """Every (contract, function) the detector scans, in the order it scans them.
+
+    Public because "no findings" only means something next to this list. A
+    target with nothing in it reports zero as well, so the tests and the corpus
+    runner ask what was scanned, and ask it here rather than repeating the rule.
+
+    Every concrete contract, not `contracts_derived`. Paymasters are commonly
+    versioned by inheritance — a V8 extending a V7 that is itself deployed and
+    in use — and `contracts_derived` drops every such intermediate, because
+    something inherits it. Reporting the same inherited line once per
+    deployable contract is the honest answer to "will the thing I deploy be
+    rejected".
+    """
+    for contract in compilation_unit.contracts:
+        if contract.is_abstract or contract.is_interface or contract.is_library:
+            continue
+        for entry in contract.functions:
+            if entry.name in VALIDATION_ENTRY_POINTS and entry.is_implemented:
+                yield contract, entry
+
+
 class ValidationPhaseOpcodes(AbstractDetector):
     """Banned opcodes reachable from an ERC-4337 validation entry point."""
 
@@ -94,37 +116,26 @@ The paymaster is deployed, staked and funded, and sponsors nothing."""
 
     def _detect(self):
         results = []
-        # Every concrete contract, not `contracts_derived`. Paymasters are
-        # commonly versioned by inheritance — a V8 extending a V7 that is itself
-        # deployed and in use — and `contracts_derived` drops every such
-        # intermediate, because something inherits it. Reporting the same
-        # inherited line once per deployable contract is the honest answer to
-        # "will the thing I deploy be rejected".
-        for contract in self.compilation_unit.contracts:
-            if contract.is_abstract or contract.is_interface or contract.is_library:
-                continue
-            for entry in contract.functions:
-                if entry.name not in VALIDATION_ENTRY_POINTS or not entry.is_implemented:
-                    continue
-                findings = self._scan(entry)
-                for function, node, opcode, spelling in findings:
-                    # Name the rule and say why, so the finding is actionable by
-                    # someone who has never read ERC-7562: what the bundler does
-                    # with this operation, not only which opcode it dislikes.
-                    rule, explanation = RULES[opcode]
-                    info = [
-                        contract.name,
-                        ".",
-                        entry.name,
-                        " reaches ",
-                        opcode,
-                        f" via `{spelling}`",
-                        "" if function is entry else f" in {function.name}",
-                        f". ERC-7562 {rule} {explanation}:\n\t- ",
-                        node,
-                        "\n",
-                    ]
-                    results.append(self.generate_result(info))
+        for contract, entry in entry_points(self.compilation_unit):
+            findings = self._scan(entry)
+            for function, node, opcode, spelling in findings:
+                # Name the rule and say why, so the finding is actionable by
+                # someone who has never read ERC-7562: what the bundler does
+                # with this operation, not only which opcode it dislikes.
+                rule, explanation = RULES[opcode]
+                info = [
+                    contract.name,
+                    ".",
+                    entry.name,
+                    " reaches ",
+                    opcode,
+                    f" via `{spelling}`",
+                    "" if function is entry else f" in {function.name}",
+                    f". ERC-7562 {rule} {explanation}:\n\t- ",
+                    node,
+                    "\n",
+                ]
+                results.append(self.generate_result(info))
         return results
 
     @staticmethod

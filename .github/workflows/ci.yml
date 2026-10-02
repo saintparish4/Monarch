@@ -200,6 +200,38 @@ jobs:
       - run: pip install slither-analyzer==0.11.6 ./tools/slither-erc7562
       - run: python cases/check-detector.py
 
+  corpus:
+    name: corpus (the detector README's results table)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          # One row analyses this repository as it was before the rewrite, and
+          # the default shallow checkout does not have that commit.
+          fetch-depth: 0
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ env.FOUNDRY_VERSION }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install slither-analyzer==0.11.6 ./tools/slither-erc7562
+      # Every number in that table, re-derived: the fixtures, upstream's
+      # reference contracts at a pinned tag, this paymaster, and its pre-rewrite
+      # code. The runner fails on a count that differs from the one published
+      # and on a count it cannot vouch for, which is any row where it cannot say
+      # which entry points were scanned. REQUIRE_ALL_ROWS turns a skipped row
+      # into a failure instead of the pass a partial checkout gets.
+      - name: corpus
+        run: |
+          forge build >/dev/null
+          export SOLC_BINARY="$(find "$HOME/.svm" "$HOME/.local/share/svm" -type f -name 'solc-0.8.28' 2>/dev/null | head -1)"
+          test -x "$SOLC_BINARY"
+          tools/slither-erc7562/run-corpus.sh
+        env:
+          REQUIRE_ALL_ROWS: "true"
+
   demo:
     name: demo (typecheck)
     runs-on: ubuntu-latest

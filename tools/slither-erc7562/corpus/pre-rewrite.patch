@@ -1,0 +1,46 @@
+What the pre-rewrite row of the corpus changes before it analyses anything.
+
+Monarch at commit e787664, the last one before the rewrite, does not compile.
+These are the three repairs that get it through solc, and they are here as a
+diff so the row's count can be checked against exactly what was analysed. None
+of them is in a validation path, and `validatePaymasterUserOp` and everything
+it calls are untouched.
+
+  - IModule.sol declares `ModulePaused` as an event and again as an error.
+    The error is never used, so it goes.
+  - BasePayments.sol writes a getter by hand with the same name as its own
+    public immutable. The immutable's generated getter replaces it.
+  - Security.sol leaves the visibility and the opening brace off
+    `requireOwner`.
+
+Applied by run-corpus.sh with `git apply`, which skips this preamble.
+
+diff --git a/contracts/interfaces/IModule.sol b/contracts/interfaces/IModule.sol
+--- a/contracts/interfaces/IModule.sol
++++ b/contracts/interfaces/IModule.sol
+@@ -18,3 +18,2 @@ interface IModule {
+     error ModuleAlreadyInitialized();
+-    error ModulePaused();
+     error InvalidConfiguration(string reason);
+diff --git a/contracts/libraries/BasePayments.sol b/contracts/libraries/BasePayments.sol
+--- a/contracts/libraries/BasePayments.sol
++++ b/contracts/libraries/BasePayments.sol
+@@ -36,3 +36,3 @@ contract BasePaymaster is IPaymaster, IModule {
+     Security.SecurityState private _security;
+-    address public immutable baseKitRegistry;
++    address public immutable override baseKitRegistry;
+     address public immutable entryPoint;
+@@ -425,5 +425,2 @@ contract BasePaymaster is IPaymaster, IModule {
+ 
+-    function baseKitRegistry() external view override returns (address) {
+-        return baseKitRegistry;
+-    }
+ 
+diff --git a/contracts/libraries/Security.sol b/contracts/libraries/Security.sol
+--- a/contracts/libraries/Security.sol
++++ b/contracts/libraries/Security.sol
+@@ -104,3 +104,3 @@ library Security {
+      */
+-    function requireOwner(SecurityState storage state, address caller)
++    function requireOwner(SecurityState storage state, address caller) internal view {
+         if (!isOwner(state, caller)) {

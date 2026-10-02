@@ -63,9 +63,15 @@ harness means "none of those opcodes ran", not "a bundler will accept this".
 Only case 01. [`slither-erc7562`](../tools/slither-erc7562) finds it in the
 source before anything is deployed, and
 [`check-detector.py`](check-detector.py) confirms in CI that it reports exactly
-that case and nothing else here. The other five are about limits, accounting,
-and what a signature binds. They are found by tests like these, by a bundler,
-or in production.
+that case and nothing else here, and that the last column of the table above
+says the same. The other five are about limits, accounting, and what a
+signature binds. They are found by tests like these, by a bundler, or in
+production.
+
+The detector's silence about the other twelve paymasters is not taken on its
+word. Each of them, broken and fixed, has a test that traces its validation and
+finds none of those opcodes, so the static answer and the executed one are
+checked against each other for every contract here.
 
 ## Where these come from
 
