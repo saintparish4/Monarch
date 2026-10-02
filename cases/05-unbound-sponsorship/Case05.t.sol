@@ -149,4 +149,18 @@ contract Case05Test is CaseTest {
             "no forbidden opcode: the digest is valid, just incomplete"
         );
     }
+
+    /// @notice The static check says nothing about the fix either. This is
+    ///         the trace that backs its silence up: an operation the fixed
+    ///         version accepts, and no forbidden opcode on the way.
+    function test_theFixedVersionRunsNoBannedOpcode() public {
+        PackedUserOperation memory op = _approvedByTheApp(address(fixed_), "approved");
+        assertEq(
+            _bannedOpcodeInValidation(IPaymaster(address(fixed_)), op, false),
+            0,
+            "no forbidden opcode ran during validation"
+        );
+        _handle(_signAsAccount(op, ownerKey));
+        assertEq(target.lastNote(address(account)), "approved", "and the traced operation ran");
+    }
 }

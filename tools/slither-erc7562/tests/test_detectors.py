@@ -26,7 +26,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from slither import Slither  # noqa: E402
 
-from slither_erc7562.detectors import ValidationPhaseOpcodes, reachable_from  # noqa: E402
+from slither_erc7562.detectors import (  # noqa: E402
+    ValidationPhaseOpcodes,
+    entry_points,
+    reachable_from,
+)
 from slither_erc7562.rules import (  # noqa: E402
     BANNED_CALLS,
     BANNED_VARIABLES,
@@ -37,6 +41,7 @@ from slither_erc7562.rules import (  # noqa: E402
 
 FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures", "Fixtures.sol")
 EXAMPLES_DIR = os.path.join(os.path.dirname(__file__), "..", "examples")
+README = os.path.join(os.path.dirname(__file__), "..", "README.md")
 # solc 0.8.28: $SOLC_BINARY if set, else Foundry's copy if there is one, else
 # whatever `solc` is on PATH (`solc-select install 0.8.28 && solc-select use 0.8.28`).
 _FOUNDRY_SOLC = os.path.expanduser("~/.local/share/svm/0.8.28/solc-0.8.28")
@@ -69,6 +74,10 @@ EXPECTED = {
     "ConcreteClockPaymaster": {("TIMESTAMP", "block.timestamp"): 1},
     "PaymasterV1": {("TIMESTAMP", "block.timestamp"): 1},
     "PaymasterV2": {("TIMESTAMP", "block.timestamp"): 1},
+    "HookReadsClock": {("TIMESTAMP", "block.timestamp"): 1},
+    "HookCallsSuper": {("TIMESTAMP", "block.timestamp"): 1},
+    "FreeFunctionTimestamp": {("TIMESTAMP", "block.timestamp"): 1},
+    "LinkedLibraryTimestamp": {("TIMESTAMP", "block.timestamp"): 1},
     "SolidityBlockFields": {
         ("DIFFICULTY", "block.difficulty"): 1,
         ("PREVRANDAO", "block.prevrandao"): 1,
@@ -107,18 +116,44 @@ EXPECTED_LOCATION = {
     "LibraryTimestamp": "until",
     "SelfCallTimestamp": "clock",
     "SelfCallOverride": "window",
+    "HookReadsClock": "_validate",
+    "HookCallsSuper": "_validate",
+    "FreeFunctionTimestamp": "fileLevelClock",
+    "LinkedLibraryTimestamp": "until",
 }
 
-# Contracts that declare a validation entry point and must stay silent. Listed
-# so that a fixture that stops compiling, or is renamed, fails loudly instead
-# of passing by absence.
+# Contracts the detector scans and must stay silent about, because nothing
+# banned runs during their validation. Listed so that a fixture that stops
+# compiling, or is renamed, fails loudly instead of passing by absence.
 EXPECTED_SILENT = {
     "CleanPaymaster",
     "ClockOutsideValidation",
     "SelfCallBase",
+    "HookReplacesClock",
+}
+
+# Contracts that declare a validation entry point and are never scanned at all:
+# an interface, a library, and abstract bases. Kept apart from the set above
+# because the two silences mean different things. One says "looked, and found
+# nothing"; this one says "nothing here is ever deployed as it stands".
+NEVER_SCANNED = {
     "IPaymasterLike",
     "ValidationHelpers",
     "AbstractClockPaymaster",
+    "HookedPaymaster",
+    "ClockByDefault",
+}
+
+# Contracts that run a banned opcode during validation and are not reported.
+# These are wrong answers, held in place on purpose: each is a limit the README
+# documents under "What it does not check", and the reason given here is the
+# one given there. If a change makes one of them fire, move it to EXPECTED and
+# take the limit out of the README in the same change.
+KNOWN_MISSES = {
+    "AsksAnotherContract": "the walk stops at a call to another contract",
+    "CastSelfCall": "a self-call through a cast is not recognised as one",
+    "FunctionPointerClock": "a call through a function pointer is not resolved",
+    "DeploysInValidation": "CREATE is not reported (OP-031 and OP-032 exceptions)",
 }
 
 # The examples in `examples/` are documentation, and the README quotes what each
@@ -136,6 +171,7 @@ EXAMPLES = {
     "BundlerAllowlist.sol": {"OriginAllowlistPaymaster": {("ORIGIN", "tx.origin"): 1}},
     "OutsideValidation.sol": {},
 }
+# Scanned and silent, as above: each of these must have been looked at.
 EXAMPLES_SILENT = {
     "Clock.sol": {"WindowReturningPaymaster"},
     "Balance.sol": {"DepositLedgerPaymaster"},
@@ -199,6 +235,26 @@ def analyse(source=FIXTURES, siblings=()):
         shutil.rmtree(workdir, ignore_errors=True)
 
 
+def scanned(sl):
+    """Names of the contracts whose validation the detector walked."""
+    return {
+        contract.name
+        for unit in sl.compilation_units
+        for contract, _ in entry_points(unit)
+    }
+
+
+def partly_parsed(sl):
+    """Contracts Slither gave up on part of, and went on without.
+
+    Slither logs an error when it cannot build its IR for a function, marks the
+    contract, and carries on. The function it skipped then has nothing in it
+    for a detector to find, so that contract is silent whatever it does. A
+    clean result from one of these is no result.
+    """
+    return sorted(c.name for c in sl.contracts if c.is_incorrectly_constructed)
+
+
 def check_examples():
     """Failures in `examples/`, and the number of findings it rendered."""
     failures = []
@@ -221,10 +277,12 @@ def check_examples():
                     f"{filename}: {name} expected {expected.get(name, {})}, "
                     f"got {dict(found.get(name, {}))}"
                 )
-        declared = {c.name for c in sl.contracts}
-        for name in sorted(EXAMPLES_SILENT.get(filename, set())):
-            if name not in declared:
-                failures.append(f"{filename}: {name} expected silent, but it is missing")
+        for name in partly_parsed(sl):
+            failures.append(f"{filename}: Slither only partly parsed {name}")
+        looked_at = scanned(sl)
+        for name in sorted(EXAMPLES_SILENT.get(filename, set()) | set(expected)):
+            if name not in looked_at:
+                failures.append(f"{filename}: {name} was never scanned, or is missing")
         if not any(f.startswith(filename) for f in failures):
             print(f"  ok  examples/{filename:<22} {sum(len(v) for v in expected.values())} reported")
     return failures, total
@@ -280,15 +338,44 @@ def main():
     if unexpected:
         failures.append(f"findings in contracts with no expectation: {sorted(unexpected)}")
 
-    # Silence only counts if the contract was there to be silent about.
+    # Silence only counts if the contract was looked at. "Declared" is not
+    # enough: a contract the detector skips is silent whatever is in it.
     declared = {c.name for c in sl.contracts}
+    looked_at = scanned(sl)
+    for name in partly_parsed(sl):
+        failures.append(f"{name}: Slither only partly parsed it, so no result counts")
     for name in sorted(EXPECTED_SILENT):
-        if name not in declared:
-            failures.append(f"{name}: expected silent, but the fixture is missing")
+        if name not in looked_at:
+            failures.append(f"{name}: expected silent, but it was never scanned")
         elif name in found:
             failures.append(f"{name}: expected silent, got {dict(found[name])}")
         else:
             print(f"  ok  {name:<24} silent")
+
+    for name in sorted(NEVER_SCANNED):
+        if name not in declared:
+            failures.append(f"{name}: expected declared and unscanned, but it is missing")
+        elif name in looked_at:
+            failures.append(f"{name}: scanned, but it is never deployed as it stands")
+        else:
+            print(f"  ok  {name:<24} not scanned")
+
+    for name, limit in sorted(KNOWN_MISSES.items()):
+        if name not in looked_at:
+            failures.append(f"{name}: a known miss, but it was never scanned")
+        elif name in found:
+            failures.append(
+                f"{name}: a known miss that is now reported as {dict(found[name])}. "
+                f"Move it to EXPECTED and take the limit out of the README"
+            )
+        else:
+            print(f"  miss {name:<23} silent: {limit}")
+
+    # Every contract the detector scanned has to be accounted for above, so a
+    # new fixture cannot pass by being silent and unlisted.
+    unlisted = looked_at - set(EXPECTED) - EXPECTED_SILENT - set(KNOWN_MISSES)
+    if unlisted:
+        failures.append(f"scanned contracts with no expectation: {sorted(unlisted)}")
 
     # Every key in the opcode maps must be proven to fire. A key no source can
     # produce is a coverage claim the detector cannot keep.
@@ -330,6 +417,19 @@ def main():
     example_failures, example_total = check_examples()
     failures += example_failures
 
+    # The README quotes the fixture count in its results table.
+    with open(README, encoding="utf-8") as handle:
+        quoted = re.search(r"Fixture suite \(self-check\)\s*\|\s*(\d+)", handle.read())
+    if not quoted:
+        failures.append("README: no fixture-suite row in the results table")
+    elif int(quoted[1]) != expected_count():
+        failures.append(
+            f"README: results table says {quoted[1]} fixture findings, "
+            f"the suite expects {expected_count()}"
+        )
+    else:
+        print(f"  ok  README quotes the fixture count ({quoted[1]})")
+
     print()
     if failures:
         for failure in failures:
@@ -338,6 +438,7 @@ def main():
         return 1
     print(
         f"all passed: {expected_count()} findings across {len(EXPECTED)} fixtures, "
+        f"{len(KNOWN_MISSES)} known misses held, "
         f"{example_total} across {len(EXAMPLES)} example files"
     )
     return 0

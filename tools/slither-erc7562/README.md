@@ -92,9 +92,12 @@ entry point, it walks everything reachable from that function and reports any
 opcode below. The walk follows every route the bundler's tracer would see
 executed under the validation frame:
 
-- internal calls,
+- internal calls, resolved to the override the deployed contract runs, so a
+  hook filled in by a derived contract is followed and a default it replaced is
+  not,
+- functions declared outside any contract,
 - **modifiers**, the easiest place for a clock read to hide from a reader,
-- library calls, internal or public,
+- library calls, inlined or linked,
 - `this.f()` calls, resolved to the override the deployed contract runs.
 
 It reports these, whether written in Solidity or in inline assembly. Rule
@@ -142,7 +145,7 @@ rule is worse than one that says which rules it covers.
   from misuse needs dataflow this does not do, and flagging every `gasleft()`
   would be noise.
 - **CREATE and CREATE2 (OP-011, OP-031, OP-032).** Permitted for deploying the
-  sender. Same problem.
+  sender. Same problem, so `new` during validation is not reported at all.
 - **Where validation calls.** Addresses without code (OP-041), the EntryPoint
   beyond the permitted calls (OP-051 to OP-055), `CALL` with value (OP-061),
   and precompiles (OP-062). These are facts about addresses and deployments,
@@ -176,6 +179,12 @@ staked, suppress the line and write down why.
   mapping. Opcode 0x44 is still caught through `prevrandao()` and
   `block.difficulty`.
 
+The first three of these, and `new`, are each written down as a fixture that
+runs a banned opcode during validation and is not reported. The test suite
+holds every one of them silent. That makes this list a tested claim like the
+tables above: a change that closes one of these gaps fails the suite until the
+fixture and this section are updated together.
+
 **Path sensitivity.** A banned opcode behind a flag that can switch it off is
 still reported. This is the detector's known false-positive class; see
 `examples/BundlerAllowlist.sol` and the section on third-party contracts below.
@@ -201,14 +210,28 @@ EntryPoint v0.8, and only the first is something this detector can see.
 
 ## Results on real code
 
-Reproduce with `./run-corpus.sh`.
+Reproduce with `./run-corpus.sh`, which prints every row of this table and
+exits non-zero if one of them comes out differently.
 
-| Target                                                   | Findings |
-| -------------------------------------------------------- | -------- |
-| Fixture suite (self-check)                               | 38       |
-| `eth-infinitism/account-abstraction` v0.8 — 48 contracts | 0        |
-| The paymaster this was written alongside                 | 0        |
-| That paymaster's own pre-rewrite code, from git history  | 4        |
+| Target                                                   | Findings | Scanned to get them |
+| -------------------------------------------------------- | -------- | ------------------- |
+| Fixture suite (self-check)                               | 42       | 31 entry points     |
+| `eth-infinitism/account-abstraction` v0.8 — 48 contracts | 0        | 6 entry points      |
+| The paymaster this was written alongside                 | 0        | 1 entry point       |
+| That paymaster's own pre-rewrite code, from git history  | 4        | 1 entry point       |
+
+The third column is there because a zero means nothing alone. A target with no
+validation entry point in it reports zero. So does one whose paymaster was
+filtered out of scope, and so does one where Slither could not build its IR for
+a function, logged an error and carried on. The runner asks the detector what
+it walked and refuses the row in each of those cases, so the two zeros above are
+zeros about the two accounts and four paymasters upstream ships, and about
+`MonarchPaymaster`.
+
+The pre-rewrite code is commit `e787664` of this repository, which does not
+compile. [`corpus/pre-rewrite.patch`](corpus/pre-rewrite.patch) is the three
+repairs that get it through solc, kept as a diff so that what was changed to
+get that 4 is on the page. None of the three is in a validation path.
 
 The last row is the one that made me write this. Four `block.timestamp` reads
 reachable from `validatePaymasterUserOp`, in code I had already deleted. One of
@@ -276,19 +299,28 @@ provides one without Foundry).
 The suite runs the detector end to end, registered exactly as the plugin entry
 point registers it, and asserts on the results it renders:
 
-- the exact findings for each of 19 reporting fixtures, counted rather than
+- the exact findings for each of 23 reporting fixtures, counted rather than
   collected into a set, so a double report fails;
 - where each transitive finding is attributed: helper, modifier, library,
-  self-call, override;
+  self-call, override, hook, file-level function;
 - that each finding names the rule ERC-7562 files its opcode under, checked
   against a copy of the spec's lists rather than against the detector's own;
-- six contracts that must stay silent: a clean paymaster, a clock read outside
-  validation, an interface, a library, an abstract base, and a self-call whose
-  target reads nothing banned;
+- four contracts that are scanned and must stay silent: a clean paymaster, a
+  clock read outside validation, a self-call whose target reads nothing banned,
+  and an override that replaces a hook which reads the clock;
+- five that must never be scanned at all: an interface, a library and three
+  abstract bases;
+- four known misses, one for each limit in
+  [What it does not check](#what-it-does-not-check) that can be written as a
+  contract, each of which must be scanned and must stay unreported;
+- that silence is never absence: every contract the detector scanned has an
+  expectation, every silent one was scanned, and Slither parsed all of them
+  whole;
 - that every key in the opcode maps fires on some fixture, so the table above
   cannot claim coverage the detector does not have;
 - that every permitted spelling is read in a fixture and reported nowhere;
-- every file in `examples/`, reported and silent, including the suppression.
+- every file in `examples/`, reported and silent, including the suppression;
+- that the fixture count in the results table above is the suite's own.
 
 The negative cases matter as much as the positive ones. A detector that fires
 on correct code gets turned off, and a detector that is turned off finds

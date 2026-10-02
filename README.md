@@ -243,8 +243,11 @@ Solidity and in inline assembly, and reports the forbidden opcodes.
 | This paymaster                                          | 0        |
 | Monarch's own pre-rewrite code, from git history        | 4        |
 
-Reproduce with `tools/slither-erc7562/run-corpus.sh`. It runs as part of this
-project's own static-analysis gate.
+Reproduce with `tools/slither-erc7562/run-corpus.sh`. CI runs it too, and it
+fails if a row comes out differently or if it cannot say what was scanned to
+get it, because a zero from a target nothing was found in looks the same as a
+zero from a clean one. The detector itself runs as part of this project's own
+static-analysis gate.
 
 ## Build
 

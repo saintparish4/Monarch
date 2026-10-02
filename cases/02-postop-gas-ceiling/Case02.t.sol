@@ -128,4 +128,18 @@ contract Case02Test is CaseTest {
             "no forbidden opcode: the ceiling is legal, just wrong"
         );
     }
+
+    /// @notice The static check says nothing about the fix either. This is
+    ///         the trace that backs its silence up: an operation the fixed
+    ///         version accepts, and no forbidden opcode on the way.
+    function test_theFixedVersionRunsNoBannedOpcode() public {
+        PackedUserOperation memory op = _sponsored(address(fixed_), PAYMASTER_POSTOP_GAS);
+        assertEq(
+            _bannedOpcodeInValidation(IPaymaster(address(fixed_)), op, true),
+            0,
+            "no forbidden opcode ran during validation"
+        );
+        _handle(op);
+        assertEq(target.lastNote(address(account)), "sponsored", "and the traced operation ran");
+    }
 }
