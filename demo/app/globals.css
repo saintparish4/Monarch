@@ -1,134 +1,1199 @@
+/* One palette, light only. The page is white paper with near-black ink, two
+   accents (aqua for the thing to press, lime for the thing to notice) and dark
+   panels for code. A dark-mode variant would need a second set of every panel
+   below, and the dark panels are what give the light page its contrast. */
 :root {
-  color-scheme: light dark;
-  --fg: #1a1a1a;
-  --muted: #666;
-  --bg: #fafafa;
-  --panel: #fff;
-  --border: #e3e3e3;
-  --accent: #0052ff;
-  --ok: #0a7a3d;
+  color-scheme: light;
+
+  --ink: #18181b;
+  --ink-soft: #27272a;
+  --muted: #71717a;
+  --faint: #a1a1aa;
+  --line: #e4e4e7;
+  --wash: #f4f4f5;
+  --paper: #fff;
+
+  --aqua: #94faf0;
+  --aqua-deep: #6ff0e3;
+  --lime: #bff660;
+  --mint: #86efac;
+  --lilac: #c7d2fe;
+
+  --night: #1c1c1f;
+  --night-line: rgb(255 255 255 / 0.1);
+
+  --ok: #15803d;
   --err: #b42318;
+
+  --display: var(--font-display), "Helvetica Neue", Arial, sans-serif;
+  --text: var(--font-body), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --code: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --shadow: 0 24px 48px -24px rgb(24 24 27 / 0.28), 0 2px 6px rgb(24 24 27 / 0.04);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --fg: #ededed;
-    --muted: #9a9a9a;
-    --bg: #111;
-    --panel: #1a1a1a;
-    --border: #2c2c2c;
-    --accent: #5b8cff;
-    --ok: #4ade80;
-    --err: #f87171;
-  }
-}
-
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  /* The header is sticky, so an anchor has to stop short of it. */
+  scroll-padding-top: 6rem;
 }
 
 body {
   margin: 0;
-  background: var(--bg);
-  color: var(--fg);
-  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 16px/1.5 var(--text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-main {
-  max-width: 44rem;
-  margin: 0 auto;
-  padding: 3rem 1.25rem;
+h1,
+h2,
+h3,
+h4,
+p,
+ul,
+ol,
+dl,
+dd,
+pre {
+  margin: 0;
 }
 
-h1 {
-  margin: 0 0 0.5rem;
-  font-size: 2rem;
-}
-
-h2 {
-  margin: 0 0 0.75rem;
-  font-size: 1.1rem;
-}
-
-.lede {
-  color: var(--muted);
+ul,
+ol {
+  padding: 0;
+  list-style: none;
 }
 
 a {
-  color: var(--accent);
-}
-
-section {
-  margin: 1.5rem 0;
-  padding: 1.25rem;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-}
-
-section.ok {
-  border-color: var(--ok);
-}
-
-section.error {
-  border-color: var(--err);
-}
-
-dl {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 0.4rem 1rem;
-  margin: 0;
-}
-
-dt {
-  color: var(--muted);
-}
-
-dd {
-  margin: 0;
-  overflow-wrap: anywhere;
+  color: inherit;
+  text-decoration: none;
 }
 
 code,
 pre {
-  font: 0.85em ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--code);
 }
 
-pre {
-  margin: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+svg {
+  flex: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+.container {
+  width: 100%;
+  max-width: 1248px;
+  margin-inline: auto;
+  padding-inline: 24px;
+}
+
+/* ------------------------------------------------------------ headings */
+
+.hero h1,
+.title-l,
+.title-m {
+  font-family: var(--display);
+  font-weight: 500;
+  text-wrap: balance;
+}
+
+.hero h1 {
+  font-size: clamp(2.75rem, 6vw, 4.75rem);
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+}
+
+.title-l {
+  font-size: clamp(2.1rem, 4.2vw, 3.5rem);
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.title-m {
+  font-size: clamp(1.5rem, 2.5vw, 2rem);
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+}
+
+/* The small label above a heading: a coloured dash, then monospace capitals. */
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+  font: 500 0.75rem/1 var(--code);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.eyebrow::before {
+  content: "";
+  width: 16px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--aqua);
+}
+
+.eyebrow.lime::before {
+  background: var(--lime);
+}
+
+/* ------------------------------------------------------------- buttons */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  height: 36px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 12px;
+  font: 600 1rem/1 var(--text);
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.button.large {
+  height: 44px;
+  padding: 0 22px;
+  border-radius: 16px;
+}
+
+.button svg {
+  font-size: 1.15em;
+  transition: transform 0.15s ease;
+}
+
+.button:hover:not(:disabled) svg {
+  transform: translateX(2px);
+}
+
+.button.primary {
+  background: var(--aqua);
+  color: #09090b;
+}
+
+.button.primary:hover:not(:disabled) {
+  background: var(--aqua-deep);
+}
+
+.button.lime {
+  background: var(--lime);
+  color: #09090b;
+}
+
+.button.lime:hover {
+  background: #b0ec4a;
+}
+
+.button.dark {
+  background: var(--ink-soft);
+  color: #fff;
+  box-shadow: inset 0 0 0 2px rgb(255 255 255 / 0.13);
+}
+
+.button.dark:hover {
+  background: #000;
+}
+
+.button.outline {
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+
+.button.outline:hover:not(:disabled) {
+  background: var(--wash);
+}
+
+/* On a dark panel, where an outline would vanish. */
+.button.glass {
+  background: rgb(255 255 255 / 0.1);
+  color: #fff;
+}
+
+.button.glass:hover {
+  background: rgb(255 255 255 / 0.18);
+}
+
+.button:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 
 .actions {
   display: flex;
-  gap: 0.75rem;
-  margin-top: 1.25rem;
+  flex-wrap: wrap;
+  gap: 1rem;
 }
 
-button {
-  padding: 0.6rem 1.1rem;
-  border: 0;
-  border-radius: 8px;
-  background: var(--accent);
-  color: #fff;
-  font: inherit;
-  cursor: pointer;
+/* ------------------------------------------------- announcement, header */
+
+.announce {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1rem;
+  background: var(--lime);
+  color: rgb(24 24 27 / 0.85);
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  text-align: center;
 }
 
-button.secondary {
-  background: transparent;
-  color: var(--fg);
-  border: 1px solid var(--border);
+.announce:hover {
+  color: #000;
 }
 
-button:disabled {
-  opacity: 0.5;
-  cursor: default;
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgb(255 255 255 / 0.86);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--wash);
 }
 
-footer {
+.header-row {
+  display: flex;
+  align-items: center;
+  gap: 2.5rem;
+  height: 80px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font: 600 1.25rem/1 var(--display);
+  letter-spacing: -0.03em;
+}
+
+.site-header nav {
+  display: flex;
+  gap: 1.75rem;
+  margin-right: auto;
+}
+
+.site-header nav a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.site-header nav a:hover {
+  color: var(--ink);
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* ---------------------------------------------------------------- hero */
+
+.hero {
+  position: relative;
+  padding: 6rem 0 4rem;
+  overflow: hidden;
+}
+
+/* A hairline across the page that the coloured rule sits on. */
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 4.5rem 0 auto;
+  height: 1px;
+  background: linear-gradient(90deg, var(--wash) 0 38%, transparent 62%);
+}
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 4.5rem;
+  /* Top-aligned, so the headline stays put when a result appears under the
+     wallet and the right-hand column grows. */
+  align-items: start;
+}
+
+.hero-rule {
+  position: absolute;
+  top: calc(4.5rem - 1px);
+  width: 80px;
+  height: 2px;
+  margin-left: 8px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #22d3ee, var(--lime));
+}
+
+.lede {
+  max-width: 31rem;
+  margin-top: 1.75rem;
+  color: var(--muted);
+  font-size: 1.125rem;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+}
+
+.lede strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.lede a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--faint);
+  text-underline-offset: 3px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 0;
+  margin: 1.75rem 0 2rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.chips li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding-right: 0.9rem;
+  margin-right: 0.9rem;
+  border-right: 1px solid var(--line);
+}
+
+.chips li:last-child {
+  border: 0;
+}
+
+.chip-icon,
+.check,
+.tab-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--aqua);
+  font-size: 12px;
+}
+
+/* The stage: a dark card with the operation, and the wallet laid over it. */
+.hero-stage {
+  position: relative;
+}
+
+.hero-stage::before {
+  content: "";
+  position: absolute;
+  inset: -3rem -6rem -3rem -1rem;
+  z-index: -1;
+  background: radial-gradient(circle, var(--line) 1px, transparent 1.5px) 0 0 / 18px 18px;
+  mask-image: radial-gradient(ellipse at 55% 45%, #000 20%, transparent 70%);
+}
+
+.op-card {
+  width: 90%;
+  padding: 1.25rem 1.5rem 4.5rem;
+  border-radius: 16px;
+  background: var(--night);
+  color: #e4e4e7;
+  font: 400 0.8125rem/1.5 var(--code);
+}
+
+.op-title {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.9rem;
+  color: var(--faint);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.op-row {
+  display: flex;
+  gap: 1rem;
+  padding: 0.2rem 0;
+}
+
+.op-row span {
+  flex: none;
+  width: 7.5rem;
+  color: #c4b5fd;
+}
+
+.op-row code {
+  color: var(--lime);
+  overflow-wrap: anywhere;
+}
+
+.wallet-card,
+.status {
+  position: relative;
+  width: 92%;
+  margin-left: 8%;
+  padding: 1.4rem 1.5rem 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--paper);
+  box-shadow: var(--shadow);
+}
+
+.wallet-card {
+  margin-top: -3.25rem;
+}
+
+.wallet-card h2,
+.status h2 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  font: 600 1rem/1.3 var(--text);
+  letter-spacing: -0.02em;
+}
+
+.live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--muted);
+  font: 500 0.6875rem/1 var(--code);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.live::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #2dd4bf;
+  box-shadow: 0 0 0 3px rgb(45 212 191 / 0.2);
+}
+
+.live.pending::before {
+  background: var(--faint);
+  box-shadow: none;
+}
+
+.wallet-card dt,
+.status dt {
+  margin-top: 1rem;
+  color: var(--muted);
+  font: 500 0.6875rem/1 var(--code);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.wallet-card dd,
+.status dd {
+  margin-top: 0.35rem;
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.wallet-card dd code,
+.status dd code,
+.status .note code {
+  font-size: 0.8125rem;
+}
+
+.wallet-card dd a,
+.status dd a {
+  text-decoration: underline;
+  text-decoration-color: var(--faint);
+  text-underline-offset: 3px;
+}
+
+.note {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+.note strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.placeholder {
+  margin-top: 1rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.status {
+  margin-top: 1rem;
+}
+
+/* Kept as `section.ok` and `section.error`: the result of a run is the one
+   thing on this page that a script might wait for. */
+.status.ok {
+  border-color: var(--mint);
+  box-shadow:
+    inset 4px 0 0 var(--mint),
+    var(--shadow);
+}
+
+.status.error {
+  border-color: #fca5a5;
+  box-shadow:
+    inset 4px 0 0 #f87171,
+    var(--shadow);
+}
+
+.status.error h2 {
+  color: var(--err);
+}
+
+.status pre {
+  margin-top: 0.75rem;
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.working {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+
+.spinner {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--line);
+  border-top-color: var(--ink);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ------------------------------------------------- sections and features */
+
+.section {
+  padding-top: 5.5rem;
+}
+
+.intro {
+  display: grid;
+  grid-template-columns: minmax(0, 19rem) minmax(0, 46rem);
+  gap: 2rem;
+  margin-top: 2rem;
+  font-size: 1.125rem;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+}
+
+.intro-lead {
+  font-weight: 600;
+}
+
+.intro-body {
+  color: var(--muted);
+}
+
+.intro-body b {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.tabs {
+  margin-top: 3.5rem;
+  border-bottom: 1px solid var(--line);
+}
+
+/* One line at any width: on a phone the row scrolls sideways instead of
+   stacking, so it still reads as a row of tabs. */
+.tab-row {
+  display: flex;
+  gap: 1.75rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tab-row a {
+  flex: none;
+}
+
+.tab-row a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 1rem 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.tab-row a:hover {
+  color: var(--ink);
+}
+
+.tab-icon {
+  background: var(--wash);
+  color: var(--muted);
+}
+
+.tab-row a:hover .tab-icon {
+  background: var(--aqua);
+  color: var(--ink);
+}
+
+.feature {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 5rem;
+  align-items: center;
+  padding-block: 6rem;
+}
+
+.feature + .feature {
+  padding-top: 1rem;
+}
+
+.feature.flip .feature-visual {
+  order: -1;
+}
+
+.checklist {
+  display: grid;
+  gap: 0.7rem;
+  margin: 1.5rem 0 2rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+}
+
+.checklist li {
+  display: flex;
+  gap: 0.65rem;
+}
+
+.check {
+  background: var(--aqua);
+  color: var(--ink);
+}
+
+.code-card {
+  padding: 1.6rem 1.75rem 4.75rem;
+  border-radius: 16px;
+  background: var(--night);
+  color: #e4e4e7;
+}
+
+.code-card pre {
+  font-size: 0.8125rem;
+  line-height: 1.65;
+  overflow-x: auto;
+}
+
+/* The detector's output is prose, so it wraps where a code sample scrolls. */
+.code-card.terminal {
+  padding-bottom: 1.75rem;
+}
+
+.code-card.terminal pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.code-card i {
+  font-style: normal;
+}
+
+.code-card .k {
+  color: #c4b5fd;
+}
+
+.code-card .f {
+  color: #93c5fd;
+}
+
+.code-card .s {
+  color: var(--lime);
+}
+
+.code-card .c {
+  color: var(--faint);
+}
+
+.float-card {
+  position: relative;
+  width: 88%;
+  margin: -3.25rem 0 0 12%;
+  padding: 1.4rem 1.5rem 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle, var(--line) 1px, transparent 1.5px) 0 0 / 16px 16px,
+    var(--paper);
+  box-shadow: var(--shadow);
+}
+
+.float-title {
+  font: 500 0.6875rem/1 var(--code);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.float-note {
+  margin-top: 0.9rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.bytes,
+.pot {
+  display: flex;
+  gap: 4px;
+  margin-top: 0.9rem;
+}
+
+/* Each field is as wide as its name needs and then shares what is left, so
+   no name is cut short; on a narrow screen the row wraps instead. */
+.bytes {
+  flex-wrap: wrap;
+}
+
+.bytes span {
+  display: grid;
+  gap: 0.3rem;
+  flex-basis: auto;
+  padding: 0.6rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--muted);
+  font: 500 0.6875rem/1 var(--code);
+}
+
+.bytes b {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.bytes span:first-child {
+  background: var(--aqua);
+  border-color: transparent;
+}
+
+.pot span {
+  flex: 1;
+  padding: 0.85rem 0.75rem;
+  border-radius: 10px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.pot-users {
+  background: var(--ink);
+  color: #fff;
+}
+
+.pot-apps {
+  background: #3f3f46;
+  color: #fff;
+}
+
+.pot span.pot-free {
+  flex: 0.6;
+  background: var(--lime);
+  color: #09090b;
+}
+
+/* -------------------------------------------------------------- panels */
+
+.panel {
+  border-radius: 28px;
+}
+
+.panel.dark {
+  padding: 4rem 3.5rem;
+  background:
+    repeating-linear-gradient(135deg, rgb(255 255 255 / 0.025) 0 2px, transparent 2px 9px),
+    var(--night);
+  color: #fff;
+}
+
+.panel-lede {
+  max-width: 34rem;
+  margin: 1rem 0 2rem;
+  color: var(--muted);
+  font-size: 1.125rem;
+  font-weight: 500;
+}
+
+.panel.dark .title-l {
+  max-width: 44rem;
+}
+
+.panel.dark .panel-lede {
+  color: var(--faint);
+}
+
+.panel.dark :focus-visible {
+  outline-color: var(--aqua);
+}
+
+.case-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 3.5rem;
+}
+
+.case-grid a {
+  display: grid;
+  gap: 0.5rem;
+  height: 100%;
+  padding: 1.15rem 1.25rem 1.3rem;
+  border: 1px solid var(--night-line);
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.04);
+  align-content: start;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.case-grid a:hover {
+  border-color: rgb(255 255 255 / 0.28);
+  background: rgb(255 255 255 / 0.07);
+}
+
+.case-number {
+  color: var(--lime);
+  font: 500 0.75rem/1 var(--code);
+  letter-spacing: 0.08em;
+}
+
+.case-grid b {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.case-outcome {
+  color: var(--faint);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.panel.light {
+  margin-block: 2rem;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  box-shadow: 0 40px 80px -48px rgb(24 24 27 / 0.25);
+}
+
+.panel-head {
+  padding: 4.5rem 1.5rem 3.5rem;
+  text-align: center;
+}
+
+.panel-head .panel-lede {
+  margin-inline: auto;
+}
+
+.fact-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 2rem;
+  padding: 2.5rem;
+  border-top: 1px solid var(--wash);
+  background: repeating-linear-gradient(135deg, var(--wash) 0 2px, transparent 2px 9px);
+}
+
+/* A white tile with a rivet in each corner. */
+.fact-grid li {
+  display: grid;
+  justify-items: center;
+  padding: 4rem 1rem 3.5rem;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle, var(--line) 4px, transparent 4.5px) 12px 12px / 10px 10px no-repeat,
+    radial-gradient(circle, var(--line) 4px, transparent 4.5px) calc(100% - 12px) 12px / 10px 10px
+      no-repeat,
+    radial-gradient(circle, var(--line) 4px, transparent 4.5px) 12px calc(100% - 12px) / 10px 10px
+      no-repeat,
+    radial-gradient(circle, var(--line) 4px, transparent 4.5px) calc(100% - 12px)
+      calc(100% - 12px) / 10px 10px no-repeat,
+    var(--paper);
+  text-align: center;
+}
+
+.fact-icon {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  margin-bottom: 1.75rem;
+  border-radius: 14px;
+  color: #0f172a;
+  font-size: 30px;
+}
+
+.fact-icon.lime {
+  background: var(--lime);
+}
+
+.fact-icon.mint {
+  background: var(--mint);
+}
+
+.fact-icon.aqua {
+  background: var(--aqua);
+}
+
+.fact-icon.lilac {
+  background: var(--lilac);
+}
+
+.fact-grid b {
+  font: 600 clamp(1.4rem, 2.2vw, 2rem) / 1.1 var(--display);
+  letter-spacing: -0.03em;
+}
+
+.fact-label {
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font: 500 0.8125rem/1.3 var(--code);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.closing .title-l span {
+  color: var(--faint);
+}
+
+.closing .panel-lede {
+  color: #e4e4e7;
+}
+
+/* --------------------------------------------------------------- footer */
+
+.site-footer {
+  margin-top: 6rem;
+}
+
+.footer-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr));
+  gap: 2rem;
+  padding-bottom: 5rem;
+  align-items: start;
+}
+
+.footer-grid div {
+  display: grid;
+  gap: 0.85rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.footer-grid h4 {
+  margin-bottom: 0.4rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.footer-grid div a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.footer-bar {
+  padding: 1.1rem 0;
+  background: var(--ink);
+  color: var(--faint);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.footer-bar a {
+  color: #fff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ----------------------------------------------------------- responsive */
+
+@media (max-width: 1000px) {
+  .site-header nav {
+    display: none;
+  }
+
+  .header-actions {
+    margin-left: auto;
+  }
+
+  .hero {
+    padding: 4.5rem 0 4rem;
+  }
+
+  .hero-grid,
+  .feature,
+  .intro {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .hero-grid {
+    gap: 3.5rem;
+  }
+
+  .feature {
+    gap: 2.5rem;
+    padding-block: 4rem;
+  }
+
+  .feature.flip .feature-visual {
+    order: 0;
+  }
+
+  .fact-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    padding: 1.25rem;
+  }
+
+  .case-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .footer-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .footer-grid .brand {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 600px) {
+  .container {
+    padding-inline: 16px;
+  }
+
+  .header-row {
+    height: 64px;
+    gap: 1rem;
+  }
+
+  .hero::before,
+  .hero-rule {
+    top: 2.5rem;
+  }
+
+  .hero {
+    padding-top: 4rem;
+  }
+
+  .chips li {
+    padding-right: 0;
+    margin-right: 1rem;
+    border: 0;
+  }
+
+  .actions .button.large {
+    flex: 1 1 100%;
+  }
+
+  /* Side by side, the offsets read as depth. Stacked, they only waste width. */
+  .op-card,
+  .wallet-card,
+  .status,
+  .float-card {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .panel {
+    border-radius: 20px;
+  }
+
+  .panel.dark {
+    padding: 2.5rem 1.25rem;
+  }
+
+  .panel-head {
+    padding: 3rem 1.25rem 2.5rem;
+  }
+
+  .case-grid,
+  .footer-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .fact-grid li {
+    padding: 2.5rem 0.75rem 2rem;
+  }
+
+  .fact-icon {
+    width: 56px;
+    height: 56px;
+    font-size: 24px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .spinner {
+    animation-duration: 2.4s;
+  }
+
+  .button,
+  .button svg,
+  .case-grid a {
+    transition: none;
+  }
 }
